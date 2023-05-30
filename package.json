@@ -6,7 +6,7 @@
     "start": "parcel",
     "prebuild": "shx rm -rf dist/*",
     "build": "parcel build --public-url ./",
-    "push-gh-pages": "push-dir --dir=dist --brach=gh-pages --local-branch-name=gh-pages --cleanup --verbose"
+    "push-gh-pages": "push-dir --dir=dist --brach=undefined --cleanup --verbose"
   },
   "devDependencies": {
     "@types/stats.js": "^0.17.0",
