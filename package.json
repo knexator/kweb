@@ -8,6 +8,7 @@
     "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
+    "@types/color": "^3.0.3",
     "@types/stats.js": "^0.17.0",
     "gh-pages": "^5.0.0",
     "parcel": "latest",
@@ -15,6 +16,7 @@
     "shx": "^0.3.4"
   },
   "dependencies": {
+    "color": "^4.2.3",
     "stats.js": "^0.17.0",
     "twgl.js": "^5.3.1"
   }

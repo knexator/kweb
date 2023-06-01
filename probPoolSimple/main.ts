@@ -1,7 +1,6 @@
 import * as twgl from "twgl.js"
 
 import Stats from "stats.js"
-// stats();
 var stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
@@ -160,10 +159,10 @@ const update_pinfo = twgl.createProgramInfo(gl, [
         new_vel = old_vel + vec4(u_impulse, 0.0, 0.0);
         new_pos = old_pos + new_vel * dt;
         // bounce on borders
-        bvec4 mask_negative = lessThan(new_pos, vec4(${(-1.0 + ball_r).toFixed(10)}));
-        bvec4 mask_positive = greaterThan(new_pos, vec4(${(1.0 - ball_r).toFixed(10)}));
-        new_pos = mix(new_pos, -${(2.0 - 2 * ball_r).toFixed(10)} - new_pos, mask_negative);
-        new_pos = mix(new_pos, ${(2.0 - 2 * ball_r).toFixed(10)} - new_pos, mask_positive);
+        bvec4 mask_negative = lessThan(new_pos, vec4(-1.0 + ball_r));
+        bvec4 mask_positive = greaterThan(new_pos, vec4(1.0 - ball_r));
+        new_pos = mix(new_pos, -(2.0 - 2.0 * ball_r) - new_pos, mask_negative);
+        new_pos = mix(new_pos, (2.0 - 2.0 * ball_r) - new_pos, mask_positive);
         bvec4 mask_both = bvec4(
             mask_positive[0] || mask_negative[0],
             mask_positive[1] || mask_negative[1],
@@ -225,6 +224,7 @@ const draw_pinfo = twgl.createProgramInfo(gl, [
     `
 ]);
 
+// VAO has metadata for inputs, this has metadata for outputs
 const update_tf_2to1 = twgl.createTransformFeedback(gl, update_pinfo, update_bi_2to1);
 const update_tf_1to2 = twgl.createTransformFeedback(gl, update_pinfo, update_bi_1to2);
 // unbind left over stuff
