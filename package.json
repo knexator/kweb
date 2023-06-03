@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "parcel",
-    "clean": "shx rm -rf dist/* && rm -rf .parcel-cache/*",
-    "predeploy": "shx rm -rf dist/* && parcel build --public-url https://knexator.github.io/kweb/",
+    "clean": "shx rm -rf dist/* && shx rm -rf .parcel-cache/*",
+    "predeploy": "npm run clean && parcel build --public-url https://knexator.github.io/kweb/",
     "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
