@@ -4,11 +4,14 @@
   "type": "module",
   "scripts": {
     "start": "parcel",
+    "clean": "shx rm -rf dist/* && rm -rf .parcel-cache/*",
     "predeploy": "shx rm -rf dist/* && parcel build --public-url https://knexator.github.io/kweb/",
     "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
+    "@parcel/transformer-glsl": "^2.9.0",
     "@types/color": "^3.0.3",
+    "@types/parcel-env": "^0.0.1",
     "@types/stats.js": "^0.17.0",
     "gh-pages": "^5.0.0",
     "parcel": "latest",

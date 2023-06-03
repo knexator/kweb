@@ -1,5 +1,10 @@
 import * as twgl from "twgl.js"
 
+// @ts-ignore
+import vert_source from "./shaders/sprite.vert";
+// @ts-ignore
+import frag_source from "./shaders/sprite.frag";
+
 // Simple "engine", with a single function to draw sprites
 
 //// init
@@ -10,55 +15,7 @@ canvas.height = 1;
 const gl = canvas.getContext("webgl2")!;
 gl.clearColor(0.5, 0.5, 0.75, 1.0);
 
-const sprite_program_info = twgl.createProgramInfo(gl, [
-    // vs
-    `#version 300 es
-    
-        // [0, 1]^2
-        in vec2 a_vertex;
-    
-        // pixels for everything
-        uniform vec2 u_resolution;
-        uniform vec2 u_position;
-        uniform vec2 u_size;
-    
-        out vec2 v_texcoord;
-    
-        void main() {
-            // if size is 100 & screen is 400, then
-            // clip space result width will be .5
-            vec2 pos = 2.0 * a_vertex * u_size / u_resolution;
-    
-            // if position is 200 & screen is 400, then
-            // clip space result offset will be .5
-            pos += 2.0 * u_position / u_resolution;
-
-            // pos of 0 should go to the top left
-            pos -= vec2(1, 1);
-
-            // ypos = down
-            pos.y = -pos.y;
-    
-            gl_Position = vec4(pos, 0, 1);
-    
-            v_texcoord = a_vertex;
-        }
-        `,
-    // fs
-    `#version 300 es
-        precision highp float;
-    
-        in vec2 v_texcoord;
-    
-        uniform sampler2D u_texture;
-        
-        out vec4 out_color;
-    
-        void main() {
-            out_color = texture(u_texture, v_texcoord);
-        }
-        `
-]);
+const sprite_program_info = twgl.createProgramInfo(gl, [vert_source, frag_source]);
 
 const buffer_info = twgl.createBufferInfoFromArrays(gl, {
     a_vertex: {
