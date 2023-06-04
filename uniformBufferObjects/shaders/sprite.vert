@@ -3,11 +3,12 @@
 // [0, 1]^2
 in vec2 a_vertex;
 
-// common stuff
-uniform vec2 u_resolution;
+uniform CommonData {
+    vec2 u_resolution;
+};
+
 uniform vec2 u_position;
 uniform vec2 u_size;
-
 out vec2 v_texcoord;
 
 void main() {

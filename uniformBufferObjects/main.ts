@@ -11,6 +11,11 @@ import circ_frag_src from "./shaders/circ.frag";
 
 // Specify common uniforms using UBOs
 
+// not working :(
+// twgl has no support for using the same UBO in multiple shaders
+// to get this working, it'd have to be more handmade
+// for the moment, forget about it
+
 //// init
 const canvas = document.querySelector("#c")! as HTMLCanvasElement;
 // ensure that we trigger a resize on the first frame
@@ -51,9 +56,9 @@ const buffer_info = twgl.createBufferInfoFromArrays(gl, {
 */
 function drawImage(texture: WebGLTexture, x: number, y: number, w: number, h: number) {
     gl.useProgram(sprite_program_info.program);
+    twgl.bindUniformBlock(gl, sprite_program_info, common_data_ubo_info);
     twgl.setBuffersAndAttributes(gl, sprite_program_info, buffer_info);
     twgl.setUniforms(sprite_program_info, {
-        u_resolution: [gl.canvas.width, gl.canvas.height],
         u_size: [w, h],
         u_position: [x, y],
         u_texture: texture,
@@ -70,9 +75,9 @@ function drawImage(texture: WebGLTexture, x: number, y: number, w: number, h: nu
 */
 function drawCircle(x: number, y: number, w: number, h: number) {
     gl.useProgram(circ_program_info.program);
+    twgl.bindUniformBlock(gl, circ_program_info, common_data_ubo_info);
     twgl.setBuffersAndAttributes(gl, circ_program_info, buffer_info);
     twgl.setUniforms(circ_program_info, {
-        u_resolution: [gl.canvas.width, gl.canvas.height],
         u_size: [w, h],
         u_position: [x, y],
         u_radius: .25,
@@ -88,6 +93,20 @@ const textures = twgl.createTextures(gl, {
     },
 });
 
+// UBOs
+// full tutorial at https://gist.github.com/jialiang/2880d4cc3364df117320e8cb324c2880
+// twgl taken from https://twgljs.org/examples/uniform-buffer-objects.html
+const common_data_ubo_info = twgl.createUniformBlockInfo(gl, circ_program_info, "CommonData");
+// link the ubo with each program
+gl.uniformBlockBinding(sprite_program_info.program,
+    gl.getUniformBlockIndex(sprite_program_info.program, "CommonData"),
+    0 // index of the uniform block
+);
+gl.uniformBlockBinding(circ_program_info.program,
+    gl.getUniformBlockIndex(circ_program_info.program, "CommonData"),
+    0 // index of the uniform block
+);
+
 // game logic
 let px = 123;
 let py = 234;
@@ -97,6 +116,11 @@ function update(now) {
     if (twgl.resizeCanvasToDisplaySize(canvas)) {
         // on resize
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        // Change the global uniform
+        twgl.setBlockUniforms(common_data_ubo_info, {
+            u_resolution: [gl.canvas.width, gl.canvas.height],
+        });
     }
     let delta = now - last;
     last = now;
