@@ -1,6 +1,26 @@
 import * as twgl from "twgl.js"
 import { fromRange } from "../kommon/kommon";
 
+// This "if" will only execute during development
+if (module.hot) {
+    module.hot.dispose(data => {
+        data.game_state = game_state;
+        cancelAnimationFrame(loop_id);
+        document.removeEventListener("keydown", onKeyDown);
+        document.removeEventListener("keyup", onKeyUp);
+
+        let gl_lose_context_ext = gl.getExtension('WEBGL_lose_context');
+        if (gl_lose_context_ext !== null) {
+            gl_lose_context_ext.loseContext();
+        } else {
+            console.log("There will be memory leaks, remember to reload the page every now and then.")
+        }
+    });
+    module.hot.accept(_ => {
+        game_state = module.hot!.data.game_state;
+    });
+}
+
 const gl = (document.querySelector("#c") as HTMLCanvasElement).getContext("webgl2", { alpha: false })!;
 gl.clearColor(0.5, 0.5, 0.75, 1.0);
 gl.enable(gl.BLEND);
@@ -34,33 +54,6 @@ const sprite_buffer_info = twgl.createBufferInfoFromArrays(gl, {
     },
 });
 const sprite_vao = twgl.createVertexArrayInfo(gl, sprite_program_info, sprite_buffer_info);
-
-// This "if" will only execute during development
-if (module.hot) {
-    module.hot.dispose(data => {
-        // data.state = state;
-        // data.hola = "hola";
-        data.game_state = game_state;
-        cancelAnimationFrame(loop_id);
-        document.removeEventListener("keydown", onKeyDown);
-        document.removeEventListener("keyup", onKeyUp);
-
-        let gl_lose_context_ext = gl.getExtension('WEBGL_lose_context');
-        if (gl_lose_context_ext !== null) {
-            // gl_lose_context_ext.loseContext();
-        } else {
-            console.log("There will be memory leaks, remember to reload the page every now and then.")
-        }
-    });
-    module.hot.accept(_ => {
-        console.log("b");
-        console.log(module.hot!.data);
-        game_state = module.hot!.data.game_state;
-        // console.log(_);
-        // console.log(module.hot!.data);
-        // window.asdf // no
-    });
-}
 
 // data for sprite renderer
 // per tile:
