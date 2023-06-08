@@ -8,13 +8,6 @@ if (module.hot) {
         cancelAnimationFrame(loop_id);
         document.removeEventListener("keydown", onKeyDown);
         document.removeEventListener("keyup", onKeyUp);
-
-        let gl_lose_context_ext = gl.getExtension('WEBGL_lose_context');
-        if (gl_lose_context_ext !== null) {
-            gl_lose_context_ext.loseContext();
-        } else {
-            console.log("There will be memory leaks, remember to reload the page every now and then.")
-        }
     });
     module.hot.accept(_ => {
         game_state = module.hot!.data.game_state;
