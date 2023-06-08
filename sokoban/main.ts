@@ -318,18 +318,79 @@ let floormap_vaoinfo = twgl.createVertexArrayInfo(gl, tilemap_programinfo, twgl.
     },
 }))
 
+// Player & boxes sprite drawing
+// for now, let's keep the same shader
+// this batching only makes sense if all textures are in the same atlas
+// but texture packing is boooring & unflexible (unless we had a custom parcel plugin...)
+// maybe i'm overcomplicating stuff for no gain :/
+// nah, even with different textures, it's cool to have a single buffer, since we can draw subsets of it.
+const max_n_sprites = 32;
+var cur_n_sprites = 0;
+var moving_sprites_cpu = new Float32Array(max_n_sprites * 4);
+const moving_sprites_buffer = gl.createBuffer()!;
+gl.bindBuffer(gl.ARRAY_BUFFER, moving_sprites_buffer);
+gl.bufferData(gl.ARRAY_BUFFER, moving_sprites_cpu, gl.DYNAMIC_DRAW);
 
+let moving_sprites_vaoinfo = twgl.createVertexArrayInfo(gl, tilemap_programinfo, twgl.createBufferInfoFromArrays(gl, {
+    a_position: {
+        buffer: moving_sprites_buffer,
+        type: gl.FLOAT,
+        numComponents: 2,
+        stride: 4 * 4,
+        offset: 0 * 4,
+        divisor: 1,
+    },
+    a_tileindex: {
+        buffer: moving_sprites_buffer,
+        type: gl.FLOAT,
+        numComponents: 2,
+        stride: 4 * 4,
+        offset: 2 * 4,
+        divisor: 1,
+    },
+    a_vertex: {
+        data: [
+            // Triangle for 1,1 corner
+            1.0, 1.0,
+            0.0, 1.0,
+            1.0, 0.0,
+            // Triangle for 0,0 corner
+            0.0, 0.0,
+            1.0, 0.0,
+            0.0, 1.0,
+        ],
+        numComponents: 2,
+    },
+}))
+
+const player_texture = twgl.createTexture(gl, {
+    src: (new URL('player_puzzlescript.png', import.meta.url)).toString(),
+    mag: gl.NEAREST,
+    wrap: gl.REPEAT,
+});
 
 let game_state = {
-    x: 0,
-    y: 0,
+    debug_x: 0,
+    debug_y: 0,
+    player_i: 2,
+    player_j: 3,
 };
 
-let input_state = {
-    w_down: false,
-    a_down: false,
-    s_down: false,
-    d_down: false,
+// player sprite data
+let player_sprite_index = cur_n_sprites;
+cur_n_sprites += 1;
+moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_i;
+moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_j;
+moving_sprites_cpu[player_sprite_index * 4 + 2] = 0; // tile index
+moving_sprites_cpu[player_sprite_index * 4 + 3] = 0;
+
+
+let input_state: {
+    pressed: Record<string, boolean>,
+    queued: string[],
+} = {
+    pressed: {},
+    queued: [],
 };
 
 
@@ -339,7 +400,9 @@ document.addEventListener("keyup", onKeyUp);
 
 function onKeyDown(ev: KeyboardEvent) {
     console.log("keydown");
-    switch (ev.code) {
+    input_state.pressed[ev.code] = true;
+    input_state.queued.push(ev.code);
+    /*switch (ev.code) {
         case "KeyD":
             input_state.d_down = true;
             break;
@@ -352,12 +415,13 @@ function onKeyDown(ev: KeyboardEvent) {
         case "KeyS":
             input_state.s_down = true;
             break;
-    }
+    }*/
 }
 
 function onKeyUp(ev: KeyboardEvent) {
     console.log("keyup");
-    switch (ev.code) {
+    input_state.pressed[ev.code] = false;
+    /*switch (ev.code) {
         case "KeyD":
             input_state.d_down = false;
             break;
@@ -370,9 +434,8 @@ function onKeyUp(ev: KeyboardEvent) {
         case "KeyS":
             input_state.s_down = false;
             break;
-    }
+    }*/
 }
-
 
 
 function update() {
@@ -380,32 +443,64 @@ function update() {
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     }
 
-    if (input_state.a_down) {
-        game_state.x -= 1;
+    if (input_state.pressed["KeyA"]) {
+        game_state.debug_x -= 1;
     }
-    if (input_state.d_down) {
-        game_state.x += 1;
+    if (input_state.pressed["KeyD"]) {
+        game_state.debug_x += 1;
     }
-    if (input_state.w_down) {
-        game_state.y -= 1;
+    if (input_state.pressed["KeyW"]) {
+        game_state.debug_y -= 1;
     }
-    if (input_state.s_down) {
-        game_state.y += 1;
+    if (input_state.pressed["KeyS"]) {
+        game_state.debug_y += 1;
     }
     // console.log(game_state.x, game_state.y);
 
+    // todo: wall collision
+    // todo: animation
+    let player_moved = false;
+    while (input_state.queued.length > 0) {
+        let cur_input = input_state.queued.shift();
+        switch (cur_input) {
+            case "KeyD":
+                game_state.player_i += 1;
+                player_moved = true;
+                break;
+            case "KeyA":
+                game_state.player_i -= 1;
+                player_moved = true;
+                break;
+            case "KeyW":
+                game_state.player_j -= 1;
+                player_moved = true;
+                break;
+            case "KeyS":
+                game_state.player_j += 1;
+                player_moved = true;
+                break;
+        }
+    }
+
+    if (player_moved) {
+        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_i;
+        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_j;
+    }
+
     gl.clear(gl.COLOR_BUFFER_BIT);
 
+    // Debug temp stuff
     gl.useProgram(sprite_program_info.program);
     twgl.setBuffersAndAttributes(gl, sprite_program_info, sprite_vao);
     twgl.setUniforms(sprite_program_info, {
         u_texture: my_texture,
         u_resolution: [gl.canvas.width, gl.canvas.height],
         u_size: [50, 50],
-        u_position: [game_state.x, game_state.y],
+        u_position: [game_state.debug_x, game_state.debug_y],
     });
     twgl.drawBufferInfo(gl, sprite_buffer_info);
 
+    // walls
     gl.useProgram(tilemap_programinfo.program);
     gl.bindVertexArray(tilemap_vaoinfo.vertexArrayObject!);
     twgl.setUniformsAndBindTextures(tilemap_programinfo, {
@@ -416,6 +511,7 @@ function update() {
     });
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, tilemap_width * tilemap_height);
 
+    // floors
     gl.bindVertexArray(floormap_vaoinfo.vertexArrayObject!);
     twgl.setUniformsAndBindTextures(tilemap_programinfo, {
         u_origin: [- level_width * tilemap_tilesize / gl.canvas.width, level_height * tilemap_tilesize / gl.canvas.height],
@@ -424,6 +520,18 @@ function update() {
         u_sheet: floor_texture,
     });
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n_floors);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, moving_sprites_buffer);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, moving_sprites_cpu);
+    gl.bindVertexArray(moving_sprites_vaoinfo.vertexArrayObject!);
+    twgl.setUniformsAndBindTextures(tilemap_programinfo, {
+        u_origin: [- level_width * tilemap_tilesize / gl.canvas.width, level_height * tilemap_tilesize / gl.canvas.height],
+        u_basis: [2 * tilemap_tilesize / gl.canvas.width, -2 * tilemap_tilesize / gl.canvas.height],
+        u_sheet_count: [1, 1],
+        u_sheet: player_texture,
+    });
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, cur_n_sprites);
+
 
     loop_id = requestAnimationFrame(update);
 }
