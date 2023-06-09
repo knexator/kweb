@@ -14,3 +14,13 @@ export function fromRange<T>(lo: number, hi: number, callback: (index: number) =
     }
     return result;
 }
+
+export function towards(cur: number, target: number, max_delta: number): number {
+    if (cur > target) {
+        return Math.max(cur - max_delta, target);
+    } else if (cur < target) {
+        return Math.min(cur + max_delta, target);
+    } else {
+        return target;
+    }
+}

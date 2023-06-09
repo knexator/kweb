@@ -1,5 +1,5 @@
 import * as twgl from "twgl.js"
-import { fromRange } from "../kommon/kommon";
+import { fromRange, towards } from "../kommon/kommon";
 
 // This "if" will only execute during development
 if (module.hot) {
@@ -371,6 +371,12 @@ let game_state = {
     player_pos: new Vec2(2, 3),
 };
 
+let visual_state = {
+    player_offset: new Vec2(0.0, 0.0),
+}
+
+let move_duration = .05;
+
 // player sprite data
 let player_sprite_index = cur_n_sprites;
 cur_n_sprites += 1;
@@ -433,7 +439,11 @@ function onKeyUp(ev: KeyboardEvent) {
 }
 
 
-function update() {
+let time_last = 0;
+function update(time_cur: number) {
+    let delta = (time_cur - time_last) * 0.001;
+    time_last = time_cur;
+
     if (twgl.resizeCanvasToDisplaySize(gl.canvas as HTMLCanvasElement)) {
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
     }
@@ -452,8 +462,8 @@ function update() {
     }
     // console.log(game_state.x, game_state.y);
 
-    // todo: animation
-    while (input_state.queued.length > 0) {
+    // todo: undo
+    if (input_state.queued.length > 0 && Vec2.isZero(visual_state.player_offset)) {
         let cur_input = input_state.queued.shift();
         let player_delta = new Vec2()
         switch (cur_input) {
@@ -475,10 +485,17 @@ function update() {
             let new_player_pos = Vec2.add(game_state.player_pos, player_delta);
             if (!getWallAt(new_player_pos.x, new_player_pos.y)) {
                 Vec2.copy(new_player_pos, game_state.player_pos);
-                moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
-                moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
+                Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
             }
         }
+    }
+
+    if (!Vec2.isZero(visual_state.player_offset)) {
+        Vec2.map2(visual_state.player_offset, Vec2.zero, 
+            (a, b) => towards(a, b, delta / move_duration), 
+        visual_state.player_offset);
+        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
+        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
