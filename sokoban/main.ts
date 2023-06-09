@@ -11,8 +11,9 @@ if (module.hot) {
     });
     module.hot.accept(_ => {
         game_state = module.hot!.data.game_state;
-        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
-        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
+        visual_state.dirty = true;
+        // moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
+        // moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
     });
 }
 
@@ -365,14 +366,23 @@ const player_texture = twgl.createTexture(gl, {
     wrap: gl.REPEAT,
 });
 
-let game_state = {
+type GameState = {
+    debug_x: number,
+    debug_y: number,
+    player_pos: Vec2,
+    prev_state: GameState | null,
+};
+
+let game_state: GameState = {
     debug_x: 0,
     debug_y: 0,
     player_pos: new Vec2(2, 3),
+    prev_state: null,
 };
 
 let visual_state = {
     player_offset: new Vec2(0.0, 0.0),
+    dirty: true,
 }
 
 let move_duration = .05;
@@ -462,38 +472,56 @@ function update(time_cur: number) {
     }
     // console.log(game_state.x, game_state.y);
 
-    // todo: undo
     if (input_state.queued.length > 0 && Vec2.isZero(visual_state.player_offset)) {
         let cur_input = input_state.queued.shift();
-        let player_delta = new Vec2()
-        switch (cur_input) {
-            case "KeyD":
-                player_delta.x = 1;
-                break;
-            case "KeyA":
-                player_delta.x = -1;
-                break;
-            case "KeyW":
-                player_delta.y = -1;
-                break;
-            case "KeyS":
-                player_delta.y = 1;
-                break;
-        }
+        if (cur_input == "KeyZ") {
+            if (game_state.prev_state !== null) {
+                game_state = game_state.prev_state;
+                visual_state.dirty = true;
+            }
+        } else {
+            let player_delta = new Vec2()
+            switch (cur_input) {
+                case "KeyD":
+                    player_delta.x = 1;
+                    break;
+                case "KeyA":
+                    player_delta.x = -1;
+                    break;
+                case "KeyW":
+                    player_delta.y = -1;
+                    break;
+                case "KeyS":
+                    player_delta.y = 1;
+                    break;
+            }
 
-        if (player_delta.x != 0 || player_delta.y != 0) {
-            let new_player_pos = Vec2.add(game_state.player_pos, player_delta);
-            if (!getWallAt(new_player_pos.x, new_player_pos.y)) {
-                Vec2.copy(new_player_pos, game_state.player_pos);
-                Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+            if (player_delta.x != 0 || player_delta.y != 0) {
+                let new_player_pos = Vec2.add(game_state.player_pos, player_delta);
+                if (!getWallAt(new_player_pos.x, new_player_pos.y)) {
+                    let new_game_state: GameState = {
+                        debug_x: game_state.debug_x,
+                        debug_y: game_state.debug_y,
+                        player_pos: new_player_pos,
+                        prev_state: game_state,
+                    };
+                    game_state = new_game_state;
+                    visual_state.dirty = true;
+                    Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+                }
             }
         }
     }
 
-    if (!Vec2.isZero(visual_state.player_offset)) {
-        Vec2.map2(visual_state.player_offset, Vec2.zero, 
-            (a, b) => towards(a, b, delta / move_duration), 
-        visual_state.player_offset);
+    if (visual_state.dirty) {
+        if (!Vec2.isZero(visual_state.player_offset)) {
+            Vec2.map2(visual_state.player_offset, Vec2.zero, 
+                (a, b) => towards(a, b, delta / move_duration), visual_state.player_offset); 
+        } else {
+            // animation is done
+            visual_state.dirty = false;
+        }
+        visual_state.player_offset;
         moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
         moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
     }
@@ -532,10 +560,12 @@ function update(time_cur: number) {
     });
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n_floors);
 
-    // player
+    // moving stuff:
     gl.bindBuffer(gl.ARRAY_BUFFER, moving_sprites_buffer);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, moving_sprites_cpu);
     gl.bindVertexArray(moving_sprites_vaoinfo.vertexArrayObject!);
+
+    //  - player
     twgl.setUniformsAndBindTextures(tilemap_programinfo, {
         u_origin: [- level_width * tilemap_tilesize / gl.canvas.width, level_height * tilemap_tilesize / gl.canvas.height],
         u_basis: [2 * tilemap_tilesize / gl.canvas.width, -2 * tilemap_tilesize / gl.canvas.height],
