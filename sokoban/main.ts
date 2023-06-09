@@ -11,8 +11,8 @@ if (module.hot) {
     });
     module.hot.accept(_ => {
         game_state = module.hot!.data.game_state;
-        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_i;
-        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_j;
+        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
+        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
     });
 }
 
@@ -32,6 +32,7 @@ const my_texture = twgl.createTexture(gl, {
 import vert_source from "../drawSprite/shaders/sprite.vert";
 // @ts-ignore
 import frag_source from "../drawSprite/shaders/sprite.frag";
+import { Vec2 } from "../kommon/math";
 const sprite_program_info = twgl.createProgramInfo(gl, [vert_source, frag_source]);
 const sprite_buffer_info = twgl.createBufferInfoFromArrays(gl, {
     a_vertex: {
@@ -367,15 +368,14 @@ const player_texture = twgl.createTexture(gl, {
 let game_state = {
     debug_x: 0,
     debug_y: 0,
-    player_i: 2,
-    player_j: 3,
+    player_pos: new Vec2(2, 3),
 };
 
 // player sprite data
 let player_sprite_index = cur_n_sprites;
 cur_n_sprites += 1;
-moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_i;
-moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_j;
+moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
+moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
 moving_sprites_cpu[player_sprite_index * 4 + 2] = 0; // tile index
 moving_sprites_cpu[player_sprite_index * 4 + 3] = 0;
 
@@ -454,32 +454,29 @@ function update() {
 
     // todo: wall collision
     // todo: animation
-    let player_moved = false;
     while (input_state.queued.length > 0) {
         let cur_input = input_state.queued.shift();
+        let player_delta = new Vec2()
         switch (cur_input) {
             case "KeyD":
-                game_state.player_i += 1;
-                player_moved = true;
+                player_delta.x = 1;
                 break;
             case "KeyA":
-                game_state.player_i -= 1;
-                player_moved = true;
+                player_delta.x = -1;
                 break;
             case "KeyW":
-                game_state.player_j -= 1;
-                player_moved = true;
+                player_delta.y = -1;
                 break;
             case "KeyS":
-                game_state.player_j += 1;
-                player_moved = true;
+                player_delta.y = 1;
                 break;
         }
-    }
 
-    if (player_moved) {
-        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_i;
-        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_j;
+        if (player_delta.x != 0 || player_delta.y != 0) {
+            Vec2.add(game_state.player_pos, player_delta, game_state.player_pos);
+            moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
+            moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
+        }
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
