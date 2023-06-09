@@ -452,7 +452,6 @@ function update() {
     }
     // console.log(game_state.x, game_state.y);
 
-    // todo: wall collision
     // todo: animation
     while (input_state.queued.length > 0) {
         let cur_input = input_state.queued.shift();
@@ -473,9 +472,12 @@ function update() {
         }
 
         if (player_delta.x != 0 || player_delta.y != 0) {
-            Vec2.add(game_state.player_pos, player_delta, game_state.player_pos);
-            moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
-            moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
+            let new_player_pos = Vec2.add(game_state.player_pos, player_delta);
+            if (!getWallAt(new_player_pos.x, new_player_pos.y)) {
+                Vec2.copy(new_player_pos, game_state.player_pos);
+                moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
+                moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
+            }
         }
     }
 

@@ -6,6 +6,14 @@ export class Vec2 {
         public y: number = 0.0,
     ) {}
 
+    static copy(v: Vec2, out?: Vec2): Vec2 {
+        out = out || new Vec2();
+        out.x = v.x;
+        out.y = v.y;
+        return out;
+      }
+      
+
     static add(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
         out = out || new Vec2();
         out.x = a.x + b.x;
