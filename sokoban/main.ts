@@ -11,6 +11,8 @@ if (module.hot) {
     });
     module.hot.accept(_ => {
         game_state = module.hot!.data.game_state;
+        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_i;
+        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_j;
     });
 }
 
@@ -514,6 +516,7 @@ function update() {
     });
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n_floors);
 
+    // player
     gl.bindBuffer(gl.ARRAY_BUFFER, moving_sprites_buffer);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, moving_sprites_cpu);
     gl.bindVertexArray(moving_sprites_vaoinfo.vertexArrayObject!);
