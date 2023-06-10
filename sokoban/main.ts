@@ -1,5 +1,6 @@
 import * as twgl from "twgl.js"
 import { fromRange, towards } from "../kommon/kommon";
+import { Vec2 } from "../kommon/math";
 
 // This "if" will only execute during development
 if (module.hot) {
@@ -12,8 +13,6 @@ if (module.hot) {
     module.hot.accept(_ => {
         game_state = module.hot!.data.game_state;
         visual_state.dirty = true;
-        // moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
-        // moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
     });
 }
 
@@ -33,7 +32,6 @@ const my_texture = twgl.createTexture(gl, {
 import vert_source from "../drawSprite/shaders/sprite.vert";
 // @ts-ignore
 import frag_source from "../drawSprite/shaders/sprite.frag";
-import { Vec2 } from "../kommon/math";
 const sprite_program_info = twgl.createProgramInfo(gl, [vert_source, frag_source]);
 const sprite_buffer_info = twgl.createBufferInfoFromArrays(gl, {
     a_vertex: {
@@ -370,15 +368,36 @@ type GameState = {
     debug_x: number,
     debug_y: number,
     player_pos: Vec2,
-    prev_state: GameState | null,
 };
 
 let game_state: GameState = {
     debug_x: 0,
     debug_y: 0,
     player_pos: new Vec2(2, 3),
-    prev_state: null,
 };
+
+type LogicCommand = {
+    type: "generic",
+    prev_game_state: GameState,
+} | {
+    type: "player_move",
+    move_dir: Vec2,
+};
+
+let command_history: LogicCommand[] = [];
+
+function undoCommand(game_state: GameState, command: LogicCommand): GameState {
+    console.log("undoing command: ", command);
+    switch (command.type) {
+        case "generic":
+            return command.prev_game_state;
+        case "player_move":
+            Vec2.sub(game_state.player_pos, command.move_dir, game_state.player_pos);
+            return game_state;
+        default:
+            throw new Error(`Unimplemented undo command: ${command}`);
+    }
+}
 
 let visual_state = {
     player_offset: new Vec2(0.0, 0.0),
@@ -475,8 +494,9 @@ function update(time_cur: number) {
     if (input_state.queued.length > 0 && Vec2.isZero(visual_state.player_offset)) {
         let cur_input = input_state.queued.shift();
         if (cur_input == "KeyZ") {
-            if (game_state.prev_state !== null) {
-                game_state = game_state.prev_state;
+            if (command_history.length > 0) {
+                let last_command = command_history.pop()!;
+                game_state = undoCommand(game_state, last_command);
                 visual_state.dirty = true;
             }
         } else {
@@ -499,13 +519,21 @@ function update(time_cur: number) {
             if (player_delta.x != 0 || player_delta.y != 0) {
                 let new_player_pos = Vec2.add(game_state.player_pos, player_delta);
                 if (!getWallAt(new_player_pos.x, new_player_pos.y)) {
-                    let new_game_state: GameState = {
-                        debug_x: game_state.debug_x,
-                        debug_y: game_state.debug_y,
-                        player_pos: new_player_pos,
-                        prev_state: game_state,
-                    };
-                    game_state = new_game_state;
+                    // specialized option
+                    command_history.push({
+                        type: "player_move",
+                        move_dir: player_delta,
+                    });
+                    // generic option
+                    /*command_history.push({
+                        type: "generic",
+                        prev_game_state: {
+                            debug_x: game_state.debug_x,
+                            debug_y: game_state.debug_y,
+                            player_pos: Vec2.copy(game_state.player_pos),
+                        }
+                    });*/
+                    Vec2.copy(new_player_pos, game_state.player_pos);
                     visual_state.dirty = true;
                     Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
                 }
@@ -515,8 +543,8 @@ function update(time_cur: number) {
 
     if (visual_state.dirty) {
         if (!Vec2.isZero(visual_state.player_offset)) {
-            Vec2.map2(visual_state.player_offset, Vec2.zero, 
-                (a, b) => towards(a, b, delta / move_duration), visual_state.player_offset); 
+            Vec2.map2(visual_state.player_offset, Vec2.zero,
+                (a, b) => towards(a, b, delta / move_duration), visual_state.player_offset);
         } else {
             // animation is done
             visual_state.dirty = false;
