@@ -364,17 +364,23 @@ const player_texture = twgl.createTexture(gl, {
     wrap: gl.REPEAT,
 });
 
-type GameState = {
-    debug_x: number,
-    debug_y: number,
-    player_pos: Vec2,
-};
+const crate_texture = twgl.createTexture(gl, {
+    src: (new URL('crate_puzzlescript.png', import.meta.url)).toString(),
+    mag: gl.NEAREST,
+    wrap: gl.REPEAT,
+});
 
-let game_state: GameState = {
+
+let game_state = {
     debug_x: 0,
     debug_y: 0,
     player_pos: new Vec2(2, 3),
+    crates_pos: [
+        new Vec2(1, 3),
+        new Vec2(3, 4),
+    ]
 };
+type GameState = typeof game_state;
 
 type LogicCommand = {
     type: "generic",
@@ -414,6 +420,16 @@ moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
 moving_sprites_cpu[player_sprite_index * 4 + 2] = 0; // tile index
 moving_sprites_cpu[player_sprite_index * 4 + 3] = 0;
 
+let crates_sprites_indices: number[] = [];
+game_state.crates_pos.forEach(crate_pos => {
+    let cur_sprite_index = cur_n_sprites;
+    crates_sprites_indices.push(cur_sprite_index);
+    cur_n_sprites += 1;
+    moving_sprites_cpu[cur_sprite_index * 4 + 0] = crate_pos.x;
+    moving_sprites_cpu[cur_sprite_index * 4 + 1] = crate_pos.y;
+    moving_sprites_cpu[cur_sprite_index * 4 + 2] = 0; // tile index
+    moving_sprites_cpu[cur_sprite_index * 4 + 3] = 0;
+})
 
 let input_state: {
     pressed: Record<string, boolean>,
@@ -519,23 +535,42 @@ function update(time_cur: number) {
             if (player_delta.x != 0 || player_delta.y != 0) {
                 let new_player_pos = Vec2.add(game_state.player_pos, player_delta);
                 if (!getWallAt(new_player_pos.x, new_player_pos.y)) {
-                    // specialized option
-                    command_history.push({
-                        type: "player_move",
-                        move_dir: player_delta,
-                    });
-                    // generic option
-                    /*command_history.push({
-                        type: "generic",
-                        prev_game_state: {
-                            debug_x: game_state.debug_x,
-                            debug_y: game_state.debug_y,
-                            player_pos: Vec2.copy(game_state.player_pos),
+                    let pushing_crate_index = game_state.crates_pos.findIndex(crate_pos => Vec2.equals(new_player_pos, crate_pos));
+                    if (pushing_crate_index == -1) {
+                        // Standard move
+                        command_history.push({
+                            type: "player_move",
+                            move_dir: player_delta,
+                        });
+                        Vec2.copy(new_player_pos, game_state.player_pos);
+                        visual_state.dirty = true;
+                        Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+                    } else {
+                        // Try to push a crate
+                        let new_crate_pos = Vec2.add(game_state.crates_pos[pushing_crate_index], player_delta);
+                        let is_push_blocked = getWallAt(new_crate_pos.x, new_crate_pos.y)
+                            || game_state.crates_pos.some(crate_pos => Vec2.equals(new_crate_pos, crate_pos));
+                        if (!is_push_blocked) {
+                            // Push a crate
+                            command_history.push({
+                                type: "generic",
+                                prev_game_state: {
+                                    debug_x: game_state.debug_x,
+                                    debug_y: game_state.debug_y,
+                                    player_pos: Vec2.copy(game_state.player_pos),
+                                    crates_pos: game_state.crates_pos.map(pos => Vec2.copy(pos)),
+                                }
+                            });
+                            // move crate
+                            Vec2.copy(new_crate_pos, game_state.crates_pos[pushing_crate_index]);
+                            // move player
+                            Vec2.copy(new_player_pos, game_state.player_pos);
+                            Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+                            visual_state.dirty = true;
+                        } else {
+                            // No action
                         }
-                    });*/
-                    Vec2.copy(new_player_pos, game_state.player_pos);
-                    visual_state.dirty = true;
-                    Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+                    }
                 }
             }
         }
@@ -552,6 +587,10 @@ function update(time_cur: number) {
         visual_state.player_offset;
         moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
         moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
+        game_state.crates_pos.forEach((crate_pos, k) => {
+            moving_sprites_cpu[crates_sprites_indices[k] * 4 + 0] = crate_pos.x;
+            moving_sprites_cpu[crates_sprites_indices[k] * 4 + 1] = crate_pos.y;
+        })
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -600,7 +639,17 @@ function update(time_cur: number) {
         u_sheet_count: [1, 1],
         u_sheet: player_texture,
     });
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, cur_n_sprites);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, 1);
+
+    // - crates
+    twgl.setUniformsAndBindTextures(tilemap_programinfo, {
+        u_origin: [- level_width * tilemap_tilesize / gl.canvas.width, level_height * tilemap_tilesize / gl.canvas.height],
+        u_basis: [2 * tilemap_tilesize / gl.canvas.width, -2 * tilemap_tilesize / gl.canvas.height],
+        u_sheet_count: [1, 1],
+        u_sheet: crate_texture,
+    });
+    // oops! can't easily draw subbuffer when using instanced drawing
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, 1 + game_state.crates_pos.length);
 
 
     loop_id = requestAnimationFrame(update);
