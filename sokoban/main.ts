@@ -11,7 +11,6 @@ if (module.hot) {
     });
     module.hot.accept(_ => {
         game_state = module.hot!.data.game_state;
-        visual_state.dirty = true;
     });
 }
 
@@ -496,9 +495,43 @@ class PushCrateCommand {
     }
 }
 
-// todo: generic command
+class BumpWallCommand {
+    constructor(
+        public pos: Vec2,
+        public dir: Vec2,
+    ) { }
 
-type Command = PlayerMoveCommand | PushCrateCommand;
+    execute() {
+        throw new Error("not an executable command");
+    }
+
+    animTurn(turn_time: number) {
+        let displacement = turn_time * (1 - turn_time);
+        Vec2.add(this.pos, Vec2.scale(this.dir, displacement), visual_state.player_pos);
+
+        sprites_pos_cpu[player_sprite_index * 8 + 0] = visual_state.player_pos.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 1] = visual_state.player_pos.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 2] = visual_state.player_pos.x + 1;
+        sprites_pos_cpu[player_sprite_index * 8 + 3] = visual_state.player_pos.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 4] = visual_state.player_pos.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 5] = visual_state.player_pos.y + 1;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 6] = visual_state.player_pos.x + 1;
+        sprites_pos_cpu[player_sprite_index * 8 + 7] = visual_state.player_pos.y + 1;
+    }
+
+    undo() {
+        throw new Error("not an undoable command");
+    }
+}
+
+// todo: generic command
+// todo: BumpWallCommand is inherently very dirty :(
+// the solution would be to embrace logic & render separation, & have separate queues for logic commands & render commands
+
+type Command = PlayerMoveCommand | PushCrateCommand | BumpWallCommand;
 
 let command_history: Command[] = [];
 
@@ -543,7 +576,6 @@ cur_n_sprites += 1;
 }
 
 
-// todo
 let crates_sprites_indices: number[] = [];
 game_state.crates_pos.forEach(crate_pos => {
     let cur_sprite_index = cur_n_sprites;
@@ -699,9 +731,11 @@ function update(time_cur: number) {
                             cur_animating_command.execute()
                             command_history.push(cur_animating_command);
                         } else {
-                            // todo: bump anim
+                            cur_animating_command = new BumpWallCommand(game_state.player_pos, player_delta);
                         }
                     }
+                } else {
+                    cur_animating_command = new BumpWallCommand(game_state.player_pos, player_delta);
                 }
             }
         }
