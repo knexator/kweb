@@ -314,49 +314,90 @@ let floormap_vaoinfo = twgl.createVertexArrayInfo(gl, tilemap_programinfo, twgl.
 }))
 
 // Player & boxes sprite drawing
-// for now, let's keep the same shader
-// this batching only makes sense if all textures are in the same atlas
-// but texture packing is boooring & unflexible (unless we had a custom parcel plugin...)
-// maybe i'm overcomplicating stuff for no gain :/
-// nah, even with different textures, it's cool to have a single buffer, since we can draw subsets of it.
-const max_n_sprites = 32;
-var cur_n_sprites = 0;
-var moving_sprites_cpu = new Float32Array(max_n_sprites * 4);
-const moving_sprites_buffer = gl.createBuffer()!;
-gl.bindBuffer(gl.ARRAY_BUFFER, moving_sprites_buffer);
-gl.bufferData(gl.ARRAY_BUFFER, moving_sprites_cpu, gl.DYNAMIC_DRAW);
+// can't use instancing since it can't offset into the attribute buffer
+// so we will use Shaku's style vertex buffers, sending 6 vertices per sprite instead of a single vec2 position :(
+// each vertex needs position, uv, depth?, color? for the moment, only pos (vec2) & uv (vec2)
+// Let's use sepparate buffers instead of interleaved, since they won't update with the same frequency
+// Vertices will be: top left, top right, bottom left, bottom right.
+// even with different textures, it's cool to have a single buffer, since we can draw subsets of it.
+// but it would be even cooler with atlas texture, @future: custom parcel plugin for auto atlas packing
 
-let moving_sprites_vaoinfo = twgl.createVertexArrayInfo(gl, tilemap_programinfo, twgl.createBufferInfoFromArrays(gl, {
+const sprites_programinfo = twgl.createProgramInfo(gl, [
+    // vs
+    `#version 300 es
+
+    in vec2 a_position;
+    in vec2 a_texcoord;
+
+    // global data
+    // sprites drawn at 0,0 will end in this clipspace position
+    uniform vec2 u_origin;
+    // sprites drawn at 1,1 will end in u_origin plus this clipspace position
+    uniform vec2 u_basis;
+
+    out vec2 v_texcoord;
+
+    void main() {
+        gl_Position = vec4(u_origin + a_position * u_basis, 0.0, 1.0);
+        v_texcoord = a_texcoord;
+    }
+    `,
+    // fs
+    `#version 300 es
+    precision highp float;
+    
+    in vec2 v_texcoord;
+
+    uniform sampler2D u_texture;
+
+    out vec4 out_color;
+
+    void main() {
+        out_color = texture(u_texture, v_texcoord);
+    }
+    `
+]);
+
+const max_n_sprites = 32;
+console.assert((max_n_sprites * 6) < (1 << 16), "Can't draw that many sprites, change the code to use u32 indices.");
+
+var cur_n_sprites = 0;
+var sprites_pos_cpu = new Float32Array(max_n_sprites * 2);
+var sprites_uv_cpu = new Float32Array(max_n_sprites * 2);
+
+const sprites_indices = new Uint16Array(max_n_sprites * 6);
+for (let k = 0; k < max_n_sprites; k += 1) {
+    // top left triangle
+    sprites_indices[k * 6 + 0] = k * 4 + 0;
+    sprites_indices[k * 6 + 1] = k * 4 + 1;
+    sprites_indices[k * 6 + 2] = k * 4 + 2;
+    // bottom right triangle
+    sprites_indices[k * 6 + 3] = k * 4 + 1;
+    sprites_indices[k * 6 + 4] = k * 4 + 3;
+    sprites_indices[k * 6 + 5] = k * 4 + 2;
+}
+
+let sprites_bufferinfo = twgl.createBufferInfoFromArrays(gl, {
     a_position: {
-        buffer: moving_sprites_buffer,
-        type: gl.FLOAT,
+        data: sprites_pos_cpu,
         numComponents: 2,
-        stride: 4 * 4,
-        offset: 0 * 4,
-        divisor: 1,
+        drawType: gl.DYNAMIC_DRAW,
     },
-    a_tileindex: {
-        buffer: moving_sprites_buffer,
-        type: gl.FLOAT,
+    a_texcoord: {
+        data: sprites_uv_cpu,
         numComponents: 2,
-        stride: 4 * 4,
-        offset: 2 * 4,
-        divisor: 1,
+        drawType: gl.DYNAMIC_DRAW,
     },
-    a_vertex: {
-        data: [
-            // Triangle for 1,1 corner
-            1.0, 1.0,
-            0.0, 1.0,
-            1.0, 0.0,
-            // Triangle for 0,0 corner
-            0.0, 0.0,
-            1.0, 0.0,
-            0.0, 1.0,
-        ],
-        numComponents: 2,
+    indices: {
+        data: sprites_indices,
+        drawType: gl.STATIC_DRAW,
     },
-}))
+});
+
+const sprites_pos_gpu = sprites_bufferinfo.attribs!.a_position.buffer;
+const sprites_uv_gpu = sprites_bufferinfo.attribs!.a_texcoord.buffer;
+
+const sprites_vaoinfo = twgl.createVertexArrayInfo(gl, sprites_programinfo, sprites_bufferinfo);
 
 const player_texture = twgl.createTexture(gl, {
     src: (new URL('player_puzzlescript.png', import.meta.url)).toString(),
@@ -415,20 +456,65 @@ let move_duration = .05;
 // player sprite data
 let player_sprite_index = cur_n_sprites;
 cur_n_sprites += 1;
-moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x;
-moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y;
-moving_sprites_cpu[player_sprite_index * 4 + 2] = 0; // tile index
-moving_sprites_cpu[player_sprite_index * 4 + 3] = 0;
+// vertex positions
+sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x;
+sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y;
 
+sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1;
+sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y;
+
+sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x;
+sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1;
+
+sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1;
+sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1;
+
+// vertex uv coordinates
+sprites_uv_cpu[player_sprite_index * 8 + 0] = 0;
+sprites_uv_cpu[player_sprite_index * 8 + 1] = 0;
+
+sprites_uv_cpu[player_sprite_index * 8 + 2] = 1;
+sprites_uv_cpu[player_sprite_index * 8 + 3] = 0;
+
+sprites_uv_cpu[player_sprite_index * 8 + 4] = 0;
+sprites_uv_cpu[player_sprite_index * 8 + 5] = 1;
+
+sprites_uv_cpu[player_sprite_index * 8 + 6] = 1;
+sprites_uv_cpu[player_sprite_index * 8 + 7] = 1;
+
+
+// todo
 let crates_sprites_indices: number[] = [];
 game_state.crates_pos.forEach(crate_pos => {
     let cur_sprite_index = cur_n_sprites;
     crates_sprites_indices.push(cur_sprite_index);
     cur_n_sprites += 1;
-    moving_sprites_cpu[cur_sprite_index * 4 + 0] = crate_pos.x;
-    moving_sprites_cpu[cur_sprite_index * 4 + 1] = crate_pos.y;
-    moving_sprites_cpu[cur_sprite_index * 4 + 2] = 0; // tile index
-    moving_sprites_cpu[cur_sprite_index * 4 + 3] = 0;
+
+    // vertex positions
+    sprites_pos_cpu[cur_sprite_index * 8 + 0] = crate_pos.x;
+    sprites_pos_cpu[cur_sprite_index * 8 + 1] = crate_pos.y;
+
+    sprites_pos_cpu[cur_sprite_index * 8 + 2] = crate_pos.x + 1;
+    sprites_pos_cpu[cur_sprite_index * 8 + 3] = crate_pos.y;
+
+    sprites_pos_cpu[cur_sprite_index * 8 + 4] = crate_pos.x;
+    sprites_pos_cpu[cur_sprite_index * 8 + 5] = crate_pos.y + 1;
+
+    sprites_pos_cpu[cur_sprite_index * 8 + 6] = crate_pos.x + 1;
+    sprites_pos_cpu[cur_sprite_index * 8 + 7] = crate_pos.y + 1;
+
+    // vertex uv coordinates
+    sprites_uv_cpu[cur_sprite_index * 8 + 0] = 0;
+    sprites_uv_cpu[cur_sprite_index * 8 + 1] = 0;
+
+    sprites_uv_cpu[cur_sprite_index * 8 + 2] = 1;
+    sprites_uv_cpu[cur_sprite_index * 8 + 3] = 0;
+
+    sprites_uv_cpu[cur_sprite_index * 8 + 4] = 0;
+    sprites_uv_cpu[cur_sprite_index * 8 + 5] = 1;
+
+    sprites_uv_cpu[cur_sprite_index * 8 + 6] = 1;
+    sprites_uv_cpu[cur_sprite_index * 8 + 7] = 1;
 })
 
 let input_state: {
@@ -584,12 +670,46 @@ function update(time_cur: number) {
             // animation is done
             visual_state.dirty = false;
         }
-        visual_state.player_offset;
-        moving_sprites_cpu[player_sprite_index * 4 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
-        moving_sprites_cpu[player_sprite_index * 4 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
+        sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y + visual_state.player_offset.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x + visual_state.player_offset.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
+
         game_state.crates_pos.forEach((crate_pos, k) => {
-            moving_sprites_cpu[crates_sprites_indices[k] * 4 + 0] = crate_pos.x;
-            moving_sprites_cpu[crates_sprites_indices[k] * 4 + 1] = crate_pos.y;
+            let crate_sprite_index = crates_sprites_indices[k];
+
+            // move player
+            sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
+            sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
+
+            sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
+            sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y + visual_state.player_offset.y;
+
+            sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x + visual_state.player_offset.x;
+            sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
+
+            sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
+            sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
+
+            // move crate
+            sprites_pos_cpu[crate_sprite_index * 8 + 0] = crate_pos.x;
+            sprites_pos_cpu[crate_sprite_index * 8 + 1] = crate_pos.y;
+
+            sprites_pos_cpu[crate_sprite_index * 8 + 2] = crate_pos.x + 1;
+            sprites_pos_cpu[crate_sprite_index * 8 + 3] = crate_pos.y;
+
+            sprites_pos_cpu[crate_sprite_index * 8 + 4] = crate_pos.x;
+            sprites_pos_cpu[crate_sprite_index * 8 + 5] = crate_pos.y + 1;
+
+            sprites_pos_cpu[crate_sprite_index * 8 + 6] = crate_pos.x + 1;
+            sprites_pos_cpu[crate_sprite_index * 8 + 7] = crate_pos.y + 1;
         })
     }
 
@@ -628,28 +748,33 @@ function update(time_cur: number) {
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n_floors);
 
     // moving stuff:
-    gl.bindBuffer(gl.ARRAY_BUFFER, moving_sprites_buffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, moving_sprites_cpu);
-    gl.bindVertexArray(moving_sprites_vaoinfo.vertexArrayObject!);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sprites_pos_gpu);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, sprites_pos_cpu);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sprites_uv_gpu);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, sprites_uv_cpu);
+
+    gl.useProgram(sprites_programinfo.program)
+    gl.bindVertexArray(sprites_vaoinfo.vertexArrayObject!);
 
     //  - player
-    twgl.setUniformsAndBindTextures(tilemap_programinfo, {
+    twgl.setUniformsAndBindTextures(sprites_programinfo, {
         u_origin: [- level_width * tilemap_tilesize / gl.canvas.width, level_height * tilemap_tilesize / gl.canvas.height],
         u_basis: [2 * tilemap_tilesize / gl.canvas.width, -2 * tilemap_tilesize / gl.canvas.height],
-        u_sheet_count: [1, 1],
-        u_sheet: player_texture,
+        u_texture: player_texture,
     });
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, 1);
+    gl.drawElements(gl.TRIANGLES,
+        6, // 1 quad
+        gl.UNSIGNED_SHORT, player_sprite_index * 12); // 12 bytes per quad
 
     // - crates
-    twgl.setUniformsAndBindTextures(tilemap_programinfo, {
+    twgl.setUniformsAndBindTextures(sprites_programinfo, {
         u_origin: [- level_width * tilemap_tilesize / gl.canvas.width, level_height * tilemap_tilesize / gl.canvas.height],
         u_basis: [2 * tilemap_tilesize / gl.canvas.width, -2 * tilemap_tilesize / gl.canvas.height],
-        u_sheet_count: [1, 1],
-        u_sheet: crate_texture,
+        u_texture: crate_texture,
     });
-    // oops! can't easily draw subbuffer when using instanced drawing
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, 1 + game_state.crates_pos.length);
+    gl.drawElements(gl.TRIANGLES,
+        6 * 2, // 2 quads
+        gl.UNSIGNED_SHORT, crates_sprites_indices[0] * 12); // assume crate sprites are contiguous
 
 
     loop_id = requestAnimationFrame(update);
