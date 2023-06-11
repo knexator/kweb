@@ -1,6 +1,5 @@
 import * as twgl from "twgl.js"
-import { fromRange, towards } from "../kommon/kommon";
-import { Vec2 } from "../kommon/math";
+import { Vec2, clamp } from "../kommon/math";
 
 // This "if" will only execute during development
 if (module.hot) {
@@ -423,64 +422,82 @@ let game_state = {
 };
 type GameState = typeof game_state;
 
-type LogicCommand = {
-    type: "generic",
-    prev_game_state: GameState,
-} | {
-    type: "player_move",
-    move_dir: Vec2,
-};
+// Command: Any action that takes time & is undoable
 
-let command_history: LogicCommand[] = [];
+class PlayerMoveCommand {
+    constructor(
+        public original_pos: Vec2,
+        public dir: Vec2,
+    ) { }
 
-function undoCommand(game_state: GameState, command: LogicCommand): GameState {
-    console.log("undoing command: ", command);
-    switch (command.type) {
-        case "generic":
-            return command.prev_game_state;
-        case "player_move":
-            Vec2.sub(game_state.player_pos, command.move_dir, game_state.player_pos);
-            return game_state;
-        default:
-            throw new Error(`Unimplemented undo command: ${command}`);
+    execute() {
+        Vec2.add(this.original_pos, this.dir, game_state.player_pos);
+    }
+
+    animTurn(turn_time: number) { // also used for undo
+        Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time), visual_state.player_pos);
+
+        sprites_pos_cpu[player_sprite_index * 8 + 0] = visual_state.player_pos.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 1] = visual_state.player_pos.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 2] = visual_state.player_pos.x + 1;
+        sprites_pos_cpu[player_sprite_index * 8 + 3] = visual_state.player_pos.y;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 4] = visual_state.player_pos.x;
+        sprites_pos_cpu[player_sprite_index * 8 + 5] = visual_state.player_pos.y + 1;
+
+        sprites_pos_cpu[player_sprite_index * 8 + 6] = visual_state.player_pos.x + 1;
+        sprites_pos_cpu[player_sprite_index * 8 + 7] = visual_state.player_pos.y + 1;
+    }
+
+    undo() {
+        Vec2.copy(this.original_pos, game_state.player_pos);
     }
 }
 
-let visual_state = {
-    player_offset: new Vec2(0.0, 0.0),
-    dirty: true,
-}
+type Command = PlayerMoveCommand;
 
-let move_duration = .05;
+let command_history: Command[] = [];
+
+let visual_state = {
+    turn_time: 0,
+    player_pos: Vec2.copy(game_state.player_pos),
+}
+let cur_animating_command: null | Command = null;
+let cur_animating_undo_command: null | Command = null;
+
+const move_duration = .05;
 
 // player sprite data
 let player_sprite_index = cur_n_sprites;
 cur_n_sprites += 1;
-// vertex positions
-sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x;
-sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y;
+{
+    // vertex positions 
+    sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x;
+    sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y;
 
-sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1;
-sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y;
+    sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1;
+    sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y;
 
-sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x;
-sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1;
+    sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x;
+    sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1;
 
-sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1;
-sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1;
+    sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1;
+    sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1;
 
-// vertex uv coordinates
-sprites_uv_cpu[player_sprite_index * 8 + 0] = 0;
-sprites_uv_cpu[player_sprite_index * 8 + 1] = 0;
+    // vertex uv coordinates
+    sprites_uv_cpu[player_sprite_index * 8 + 0] = 0;
+    sprites_uv_cpu[player_sprite_index * 8 + 1] = 0;
 
-sprites_uv_cpu[player_sprite_index * 8 + 2] = 1;
-sprites_uv_cpu[player_sprite_index * 8 + 3] = 0;
+    sprites_uv_cpu[player_sprite_index * 8 + 2] = 1;
+    sprites_uv_cpu[player_sprite_index * 8 + 3] = 0;
 
-sprites_uv_cpu[player_sprite_index * 8 + 4] = 0;
-sprites_uv_cpu[player_sprite_index * 8 + 5] = 1;
+    sprites_uv_cpu[player_sprite_index * 8 + 4] = 0;
+    sprites_uv_cpu[player_sprite_index * 8 + 5] = 1;
 
-sprites_uv_cpu[player_sprite_index * 8 + 6] = 1;
-sprites_uv_cpu[player_sprite_index * 8 + 7] = 1;
+    sprites_uv_cpu[player_sprite_index * 8 + 6] = 1;
+    sprites_uv_cpu[player_sprite_index * 8 + 7] = 1;
+}
 
 
 // todo
@@ -489,32 +506,33 @@ game_state.crates_pos.forEach(crate_pos => {
     let cur_sprite_index = cur_n_sprites;
     crates_sprites_indices.push(cur_sprite_index);
     cur_n_sprites += 1;
+    {
+        // vertex positions
+        sprites_pos_cpu[cur_sprite_index * 8 + 0] = crate_pos.x;
+        sprites_pos_cpu[cur_sprite_index * 8 + 1] = crate_pos.y;
 
-    // vertex positions
-    sprites_pos_cpu[cur_sprite_index * 8 + 0] = crate_pos.x;
-    sprites_pos_cpu[cur_sprite_index * 8 + 1] = crate_pos.y;
+        sprites_pos_cpu[cur_sprite_index * 8 + 2] = crate_pos.x + 1;
+        sprites_pos_cpu[cur_sprite_index * 8 + 3] = crate_pos.y;
 
-    sprites_pos_cpu[cur_sprite_index * 8 + 2] = crate_pos.x + 1;
-    sprites_pos_cpu[cur_sprite_index * 8 + 3] = crate_pos.y;
+        sprites_pos_cpu[cur_sprite_index * 8 + 4] = crate_pos.x;
+        sprites_pos_cpu[cur_sprite_index * 8 + 5] = crate_pos.y + 1;
 
-    sprites_pos_cpu[cur_sprite_index * 8 + 4] = crate_pos.x;
-    sprites_pos_cpu[cur_sprite_index * 8 + 5] = crate_pos.y + 1;
+        sprites_pos_cpu[cur_sprite_index * 8 + 6] = crate_pos.x + 1;
+        sprites_pos_cpu[cur_sprite_index * 8 + 7] = crate_pos.y + 1;
 
-    sprites_pos_cpu[cur_sprite_index * 8 + 6] = crate_pos.x + 1;
-    sprites_pos_cpu[cur_sprite_index * 8 + 7] = crate_pos.y + 1;
+        // vertex uv coordinates
+        sprites_uv_cpu[cur_sprite_index * 8 + 0] = 0;
+        sprites_uv_cpu[cur_sprite_index * 8 + 1] = 0;
 
-    // vertex uv coordinates
-    sprites_uv_cpu[cur_sprite_index * 8 + 0] = 0;
-    sprites_uv_cpu[cur_sprite_index * 8 + 1] = 0;
+        sprites_uv_cpu[cur_sprite_index * 8 + 2] = 1;
+        sprites_uv_cpu[cur_sprite_index * 8 + 3] = 0;
 
-    sprites_uv_cpu[cur_sprite_index * 8 + 2] = 1;
-    sprites_uv_cpu[cur_sprite_index * 8 + 3] = 0;
+        sprites_uv_cpu[cur_sprite_index * 8 + 4] = 0;
+        sprites_uv_cpu[cur_sprite_index * 8 + 5] = 1;
 
-    sprites_uv_cpu[cur_sprite_index * 8 + 4] = 0;
-    sprites_uv_cpu[cur_sprite_index * 8 + 5] = 1;
-
-    sprites_uv_cpu[cur_sprite_index * 8 + 6] = 1;
-    sprites_uv_cpu[cur_sprite_index * 8 + 7] = 1;
+        sprites_uv_cpu[cur_sprite_index * 8 + 6] = 1;
+        sprites_uv_cpu[cur_sprite_index * 8 + 7] = 1;
+    }
 })
 
 let input_state: {
@@ -593,13 +611,13 @@ function update(time_cur: number) {
     }
     // console.log(game_state.x, game_state.y);
 
-    if (input_state.queued.length > 0 && Vec2.isZero(visual_state.player_offset)) {
+    if (input_state.queued.length > 0 && cur_animating_command === null) {
         let cur_input = input_state.queued.shift();
         if (cur_input == "KeyZ") {
             if (command_history.length > 0) {
-                let last_command = command_history.pop()!;
-                game_state = undoCommand(game_state, last_command);
-                visual_state.dirty = true;
+                cur_animating_undo_command = command_history.pop()!;
+                cur_animating_undo_command.undo();
+                visual_state.turn_time = 1;
             }
         } else {
             let player_delta = new Vec2()
@@ -624,79 +642,51 @@ function update(time_cur: number) {
                     let pushing_crate_index = game_state.crates_pos.findIndex(crate_pos => Vec2.equals(new_player_pos, crate_pos));
                     if (pushing_crate_index == -1) {
                         // Standard move
-                        command_history.push({
-                            type: "player_move",
-                            move_dir: player_delta,
-                        });
-                        Vec2.copy(new_player_pos, game_state.player_pos);
-                        visual_state.dirty = true;
-                        Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+                        cur_animating_command = new PlayerMoveCommand(Vec2.copy(game_state.player_pos), player_delta);
+                        cur_animating_command.execute()
+                        command_history.push(cur_animating_command);
                     } else {
-                        // Try to push a crate
-                        let new_crate_pos = Vec2.add(game_state.crates_pos[pushing_crate_index], player_delta);
-                        let is_push_blocked = getWallAt(new_crate_pos.x, new_crate_pos.y)
-                            || game_state.crates_pos.some(crate_pos => Vec2.equals(new_crate_pos, crate_pos));
-                        if (!is_push_blocked) {
-                            // Push a crate
-                            command_history.push({
-                                type: "generic",
-                                prev_game_state: {
-                                    debug_x: game_state.debug_x,
-                                    debug_y: game_state.debug_y,
-                                    player_pos: Vec2.copy(game_state.player_pos),
-                                    crates_pos: game_state.crates_pos.map(pos => Vec2.copy(pos)),
-                                }
-                            });
-                            // move crate
-                            Vec2.copy(new_crate_pos, game_state.crates_pos[pushing_crate_index]);
-                            // move player
-                            Vec2.copy(new_player_pos, game_state.player_pos);
-                            Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
-                            visual_state.dirty = true;
-                        } else {
-                            // No action
-                        }
+                        // todo
+                        // // Try to push a crate
+                        // let new_crate_pos = Vec2.add(game_state.crates_pos[pushing_crate_index], player_delta);
+                        // let is_push_blocked = getWallAt(new_crate_pos.x, new_crate_pos.y)
+                        //     || game_state.crates_pos.some(crate_pos => Vec2.equals(new_crate_pos, crate_pos));
+                        // if (!is_push_blocked) {
+                        //     // Push a crate
+                        //     command_history.push({
+                        //         type: "generic",
+                        //         prev_game_state: {
+                        //             debug_x: game_state.debug_x,
+                        //             debug_y: game_state.debug_y,
+                        //             player_pos: Vec2.copy(game_state.player_pos),
+                        //             crates_pos: game_state.crates_pos.map(pos => Vec2.copy(pos)),
+                        //         }
+                        //     });
+                        //     // move crate
+                        //     Vec2.copy(new_crate_pos, game_state.crates_pos[pushing_crate_index]);
+                        //     // move player
+                        //     Vec2.copy(new_player_pos, game_state.player_pos);
+                        //     Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
+                        //     visual_state.dirty = true;
+                        // } else {
+                        //     // No action
+                        // }
                     }
                 }
             }
         }
     }
 
-    if (visual_state.dirty) {
-        if (!Vec2.isZero(visual_state.player_offset)) {
-            Vec2.map2(visual_state.player_offset, Vec2.zero,
-                (a, b) => towards(a, b, delta / move_duration), visual_state.player_offset);
-        } else {
-            // animation is done
-            visual_state.dirty = false;
+    if (cur_animating_command !== null) {
+        visual_state.turn_time += delta / move_duration;
+        visual_state.turn_time = clamp(visual_state.turn_time, 0, 1);
+        cur_animating_command.animTurn(visual_state.turn_time);
+        if (visual_state.turn_time >= 1) {
+            cur_animating_command = null;
+            visual_state.turn_time = 0;
         }
-        sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y + visual_state.player_offset.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x + visual_state.player_offset.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
-
         game_state.crates_pos.forEach((crate_pos, k) => {
             let crate_sprite_index = crates_sprites_indices[k];
-
-            // move player
-            sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x + visual_state.player_offset.x;
-            sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y + visual_state.player_offset.y;
-
-            sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
-            sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y + visual_state.player_offset.y;
-
-            sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x + visual_state.player_offset.x;
-            sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
-
-            sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1 + visual_state.player_offset.x;
-            sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1 + visual_state.player_offset.y;
 
             // move crate
             sprites_pos_cpu[crate_sprite_index * 8 + 0] = crate_pos.x;
@@ -711,6 +701,14 @@ function update(time_cur: number) {
             sprites_pos_cpu[crate_sprite_index * 8 + 6] = crate_pos.x + 1;
             sprites_pos_cpu[crate_sprite_index * 8 + 7] = crate_pos.y + 1;
         })
+    } else if (cur_animating_undo_command !== null) {
+        visual_state.turn_time -= delta / move_duration;
+        visual_state.turn_time = clamp(visual_state.turn_time, 0, 1);
+        cur_animating_undo_command.animTurn(visual_state.turn_time);
+        if (visual_state.turn_time <= 0) {
+            cur_animating_undo_command = null;
+            visual_state.turn_time = 0;
+        }
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
