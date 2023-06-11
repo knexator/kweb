@@ -434,19 +434,8 @@ class PlayerMoveCommand {
     }
 
     animTurn(turn_time: number) { // also used for undo
-        Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time), visual_state.player_pos);
-
-        sprites_pos_cpu[player_sprite_index * 8 + 0] = visual_state.player_pos.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 1] = visual_state.player_pos.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 2] = visual_state.player_pos.x + 1;
-        sprites_pos_cpu[player_sprite_index * 8 + 3] = visual_state.player_pos.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 4] = visual_state.player_pos.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 5] = visual_state.player_pos.y + 1;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 6] = visual_state.player_pos.x + 1;
-        sprites_pos_cpu[player_sprite_index * 8 + 7] = visual_state.player_pos.y + 1;
+        Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time), visual_state.player_sprite.position);
+        updateSpritePositionOrSize(visual_state.player_sprite);
     }
 
     undo() {
@@ -471,22 +460,9 @@ class PushCrateCommand {
     }
 
     animTurn(turn_time: number) { // also used for undo
-        let crate_visual_pos = Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time));
-        let crate_sprite_index = crates_sprites_indices[this.crate_index];
+        Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time), visual_state.crates_sprites[this.crate_index].position);
+        updateSpritePositionOrSize(visual_state.crates_sprites[this.crate_index]);
         this.extra_command.animTurn(turn_time);
-
-        // move crate
-        sprites_pos_cpu[crate_sprite_index * 8 + 0] = crate_visual_pos.x;
-        sprites_pos_cpu[crate_sprite_index * 8 + 1] = crate_visual_pos.y;
-
-        sprites_pos_cpu[crate_sprite_index * 8 + 2] = crate_visual_pos.x + 1;
-        sprites_pos_cpu[crate_sprite_index * 8 + 3] = crate_visual_pos.y;
-
-        sprites_pos_cpu[crate_sprite_index * 8 + 4] = crate_visual_pos.x;
-        sprites_pos_cpu[crate_sprite_index * 8 + 5] = crate_visual_pos.y + 1;
-
-        sprites_pos_cpu[crate_sprite_index * 8 + 6] = crate_visual_pos.x + 1;
-        sprites_pos_cpu[crate_sprite_index * 8 + 7] = crate_visual_pos.y + 1;
     }
 
     undo() {
@@ -507,19 +483,8 @@ class BumpWallCommand {
 
     animTurn(turn_time: number) {
         let displacement = turn_time * (1 - turn_time);
-        Vec2.add(this.pos, Vec2.scale(this.dir, displacement), visual_state.player_pos);
-
-        sprites_pos_cpu[player_sprite_index * 8 + 0] = visual_state.player_pos.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 1] = visual_state.player_pos.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 2] = visual_state.player_pos.x + 1;
-        sprites_pos_cpu[player_sprite_index * 8 + 3] = visual_state.player_pos.y;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 4] = visual_state.player_pos.x;
-        sprites_pos_cpu[player_sprite_index * 8 + 5] = visual_state.player_pos.y + 1;
-
-        sprites_pos_cpu[player_sprite_index * 8 + 6] = visual_state.player_pos.x + 1;
-        sprites_pos_cpu[player_sprite_index * 8 + 7] = visual_state.player_pos.y + 1;
+        Vec2.add(this.pos, Vec2.scale(this.dir, displacement), visual_state.player_sprite.position);
+        updateSpritePositionOrSize(visual_state.player_sprite);
     }
 
     undo() {
@@ -537,78 +502,82 @@ let command_history: Command[] = [];
 
 let visual_state = {
     turn_time: 0,
-    player_pos: Vec2.copy(game_state.player_pos),
+    // player_pos: Vec2.copy(game_state.player_pos),
+    player_sprite: createSprite(
+        Vec2.copy(game_state.player_pos),
+        Vec2.copy(Vec2.one),
+        Vec2.copy(Vec2.zero),
+        Vec2.copy(Vec2.one),
+    ),
+    crates_sprites: game_state.crates_pos.map(crate_pos => {
+        return createSprite(
+            Vec2.copy(crate_pos),
+            Vec2.copy(Vec2.one),
+            Vec2.copy(Vec2.zero),
+            Vec2.copy(Vec2.one),
+        );
+    }),
 }
+
 let cur_animating_command: null | Command = null;
 let cur_animating_undo_command: null | Command = null;
 
 const move_duration = .05;
 
 // player sprite data
-let player_sprite_index = cur_n_sprites;
-cur_n_sprites += 1;
-{
-    // vertex positions 
-    sprites_pos_cpu[player_sprite_index * 8 + 0] = game_state.player_pos.x;
-    sprites_pos_cpu[player_sprite_index * 8 + 1] = game_state.player_pos.y;
 
-    sprites_pos_cpu[player_sprite_index * 8 + 2] = game_state.player_pos.x + 1;
-    sprites_pos_cpu[player_sprite_index * 8 + 3] = game_state.player_pos.y;
-
-    sprites_pos_cpu[player_sprite_index * 8 + 4] = game_state.player_pos.x;
-    sprites_pos_cpu[player_sprite_index * 8 + 5] = game_state.player_pos.y + 1;
-
-    sprites_pos_cpu[player_sprite_index * 8 + 6] = game_state.player_pos.x + 1;
-    sprites_pos_cpu[player_sprite_index * 8 + 7] = game_state.player_pos.y + 1;
-
-    // vertex uv coordinates
-    sprites_uv_cpu[player_sprite_index * 8 + 0] = 0;
-    sprites_uv_cpu[player_sprite_index * 8 + 1] = 0;
-
-    sprites_uv_cpu[player_sprite_index * 8 + 2] = 1;
-    sprites_uv_cpu[player_sprite_index * 8 + 3] = 0;
-
-    sprites_uv_cpu[player_sprite_index * 8 + 4] = 0;
-    sprites_uv_cpu[player_sprite_index * 8 + 5] = 1;
-
-    sprites_uv_cpu[player_sprite_index * 8 + 6] = 1;
-    sprites_uv_cpu[player_sprite_index * 8 + 7] = 1;
+type Sprite = {
+    buffer_index: number,
+    position: Vec2,
+    size: Vec2,
+    uv_pos: Vec2,
+    uv_size: Vec2,
 }
 
-
-let crates_sprites_indices: number[] = [];
-game_state.crates_pos.forEach(crate_pos => {
-    let cur_sprite_index = cur_n_sprites;
-    crates_sprites_indices.push(cur_sprite_index);
+function createSprite(pos: Vec2, size: Vec2, uv_pos: Vec2, uv_size: Vec2): Sprite {
+    let index = cur_n_sprites;
     cur_n_sprites += 1;
-    {
-        // vertex positions
-        sprites_pos_cpu[cur_sprite_index * 8 + 0] = crate_pos.x;
-        sprites_pos_cpu[cur_sprite_index * 8 + 1] = crate_pos.y;
-
-        sprites_pos_cpu[cur_sprite_index * 8 + 2] = crate_pos.x + 1;
-        sprites_pos_cpu[cur_sprite_index * 8 + 3] = crate_pos.y;
-
-        sprites_pos_cpu[cur_sprite_index * 8 + 4] = crate_pos.x;
-        sprites_pos_cpu[cur_sprite_index * 8 + 5] = crate_pos.y + 1;
-
-        sprites_pos_cpu[cur_sprite_index * 8 + 6] = crate_pos.x + 1;
-        sprites_pos_cpu[cur_sprite_index * 8 + 7] = crate_pos.y + 1;
-
-        // vertex uv coordinates
-        sprites_uv_cpu[cur_sprite_index * 8 + 0] = 0;
-        sprites_uv_cpu[cur_sprite_index * 8 + 1] = 0;
-
-        sprites_uv_cpu[cur_sprite_index * 8 + 2] = 1;
-        sprites_uv_cpu[cur_sprite_index * 8 + 3] = 0;
-
-        sprites_uv_cpu[cur_sprite_index * 8 + 4] = 0;
-        sprites_uv_cpu[cur_sprite_index * 8 + 5] = 1;
-
-        sprites_uv_cpu[cur_sprite_index * 8 + 6] = 1;
-        sprites_uv_cpu[cur_sprite_index * 8 + 7] = 1;
+    let sprite: Sprite = {
+        buffer_index: index,
+        position: pos,
+        size: size,
+        uv_pos: uv_pos,
+        uv_size: uv_size,
     }
-})
+    updateSpritePositionOrSize(sprite);
+    updateSpriteUVs(sprite);
+    return sprite;
+}
+
+function updateSpritePositionOrSize(sprite: Sprite) {
+    // vertex positions 
+    sprites_pos_cpu[sprite.buffer_index * 8 + 0] = sprite.position.x;
+    sprites_pos_cpu[sprite.buffer_index * 8 + 1] = sprite.position.y;
+
+    sprites_pos_cpu[sprite.buffer_index * 8 + 2] = sprite.position.x + sprite.size.x;
+    sprites_pos_cpu[sprite.buffer_index * 8 + 3] = sprite.position.y;
+
+    sprites_pos_cpu[sprite.buffer_index * 8 + 4] = sprite.position.x;
+    sprites_pos_cpu[sprite.buffer_index * 8 + 5] = sprite.position.y + sprite.size.x;
+
+    sprites_pos_cpu[sprite.buffer_index * 8 + 6] = sprite.position.x + sprite.size.x;
+    sprites_pos_cpu[sprite.buffer_index * 8 + 7] = sprite.position.y + sprite.size.x;
+}
+
+function updateSpriteUVs(sprite: Sprite) {
+    // vertex uv coordinates
+    sprites_uv_cpu[sprite.buffer_index * 8 + 0] = sprite.uv_pos.x;
+    sprites_uv_cpu[sprite.buffer_index * 8 + 1] = sprite.uv_pos.y;
+
+    sprites_uv_cpu[sprite.buffer_index * 8 + 2] = sprite.uv_pos.x + sprite.uv_size.x;
+    sprites_uv_cpu[sprite.buffer_index * 8 + 3] = sprite.uv_pos.y;
+
+    sprites_uv_cpu[sprite.buffer_index * 8 + 4] = sprite.uv_pos.x;
+    sprites_uv_cpu[sprite.buffer_index * 8 + 5] = sprite.uv_pos.y + sprite.uv_size.x;
+
+    sprites_uv_cpu[sprite.buffer_index * 8 + 6] = sprite.uv_pos.x + sprite.uv_size.x;
+    sprites_uv_cpu[sprite.buffer_index * 8 + 7] = sprite.uv_pos.y + sprite.uv_size.x;
+}
 
 let input_state: {
     pressed: Record<string, boolean>,
@@ -810,7 +779,7 @@ function update(time_cur: number) {
     });
     gl.drawElements(gl.TRIANGLES,
         6, // 1 quad
-        gl.UNSIGNED_SHORT, player_sprite_index * 12); // 12 bytes per quad
+        gl.UNSIGNED_SHORT, visual_state.player_sprite.buffer_index * 12); // 12 bytes per quad
 
     // - crates
     twgl.setUniformsAndBindTextures(sprites_programinfo, {
@@ -820,8 +789,7 @@ function update(time_cur: number) {
     });
     gl.drawElements(gl.TRIANGLES,
         6 * 2, // 2 quads
-        gl.UNSIGNED_SHORT, crates_sprites_indices[0] * 12); // assume crate sprites are contiguous
-
+        gl.UNSIGNED_SHORT, visual_state.crates_sprites[0].buffer_index * 12); // assume crate sprites are contiguous
 
     loop_id = requestAnimationFrame(update);
 }

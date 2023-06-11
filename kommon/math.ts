@@ -25,6 +25,7 @@ export class Vec2 {
     ) { }
 
     static zero = new Vec2(0, 0);
+    static one = new Vec2(1, 1);
 
     static copy(v: Vec2, out?: Vec2): Vec2 {
         out = out || new Vec2();
