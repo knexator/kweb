@@ -455,7 +455,50 @@ class PlayerMoveCommand {
     }
 }
 
-type Command = PlayerMoveCommand;
+class PushCrateCommand {
+    extra_command: PlayerMoveCommand;
+
+    constructor(
+        public crate_index: number,
+        public original_pos: Vec2,
+        public dir: Vec2,
+    ) {
+        this.extra_command = new PlayerMoveCommand(Vec2.sub(original_pos, dir), dir);
+    }
+
+    execute() {
+        Vec2.add(this.original_pos, this.dir, game_state.crates_pos[this.crate_index]);
+        this.extra_command.execute();
+    }
+
+    animTurn(turn_time: number) { // also used for undo
+        let crate_visual_pos = Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time));
+        let crate_sprite_index = crates_sprites_indices[this.crate_index];
+        this.extra_command.animTurn(turn_time);
+
+        // move crate
+        sprites_pos_cpu[crate_sprite_index * 8 + 0] = crate_visual_pos.x;
+        sprites_pos_cpu[crate_sprite_index * 8 + 1] = crate_visual_pos.y;
+
+        sprites_pos_cpu[crate_sprite_index * 8 + 2] = crate_visual_pos.x + 1;
+        sprites_pos_cpu[crate_sprite_index * 8 + 3] = crate_visual_pos.y;
+
+        sprites_pos_cpu[crate_sprite_index * 8 + 4] = crate_visual_pos.x;
+        sprites_pos_cpu[crate_sprite_index * 8 + 5] = crate_visual_pos.y + 1;
+
+        sprites_pos_cpu[crate_sprite_index * 8 + 6] = crate_visual_pos.x + 1;
+        sprites_pos_cpu[crate_sprite_index * 8 + 7] = crate_visual_pos.y + 1;
+    }
+
+    undo() {
+        Vec2.copy(this.original_pos, game_state.crates_pos[this.crate_index]);
+        this.extra_command.undo();
+    }
+}
+
+// todo: generic command
+
+type Command = PlayerMoveCommand | PushCrateCommand;
 
 let command_history: Command[] = [];
 
@@ -611,7 +654,7 @@ function update(time_cur: number) {
     }
     // console.log(game_state.x, game_state.y);
 
-    if (input_state.queued.length > 0 && cur_animating_command === null) {
+    if (input_state.queued.length > 0 && cur_animating_command === null && cur_animating_undo_command === null) {
         let cur_input = input_state.queued.shift();
         if (cur_input == "KeyZ") {
             if (command_history.length > 0) {
@@ -646,31 +689,18 @@ function update(time_cur: number) {
                         cur_animating_command.execute()
                         command_history.push(cur_animating_command);
                     } else {
-                        // todo
-                        // // Try to push a crate
-                        // let new_crate_pos = Vec2.add(game_state.crates_pos[pushing_crate_index], player_delta);
-                        // let is_push_blocked = getWallAt(new_crate_pos.x, new_crate_pos.y)
-                        //     || game_state.crates_pos.some(crate_pos => Vec2.equals(new_crate_pos, crate_pos));
-                        // if (!is_push_blocked) {
-                        //     // Push a crate
-                        //     command_history.push({
-                        //         type: "generic",
-                        //         prev_game_state: {
-                        //             debug_x: game_state.debug_x,
-                        //             debug_y: game_state.debug_y,
-                        //             player_pos: Vec2.copy(game_state.player_pos),
-                        //             crates_pos: game_state.crates_pos.map(pos => Vec2.copy(pos)),
-                        //         }
-                        //     });
-                        //     // move crate
-                        //     Vec2.copy(new_crate_pos, game_state.crates_pos[pushing_crate_index]);
-                        //     // move player
-                        //     Vec2.copy(new_player_pos, game_state.player_pos);
-                        //     Vec2.sub(visual_state.player_offset, player_delta, visual_state.player_offset);
-                        //     visual_state.dirty = true;
-                        // } else {
-                        //     // No action
-                        // }
+                        // Try to push a crate
+                        let new_crate_pos = Vec2.add(game_state.crates_pos[pushing_crate_index], player_delta);
+                        let is_push_blocked = getWallAt(new_crate_pos.x, new_crate_pos.y)
+                            || game_state.crates_pos.some(crate_pos => Vec2.equals(new_crate_pos, crate_pos));
+                        if (!is_push_blocked) {
+                            // Push a crate
+                            cur_animating_command = new PushCrateCommand(pushing_crate_index, Vec2.copy(game_state.crates_pos[pushing_crate_index]), player_delta);
+                            cur_animating_command.execute()
+                            command_history.push(cur_animating_command);
+                        } else {
+                            // todo: bump anim
+                        }
                     }
                 }
             }
@@ -685,22 +715,6 @@ function update(time_cur: number) {
             cur_animating_command = null;
             visual_state.turn_time = 0;
         }
-        game_state.crates_pos.forEach((crate_pos, k) => {
-            let crate_sprite_index = crates_sprites_indices[k];
-
-            // move crate
-            sprites_pos_cpu[crate_sprite_index * 8 + 0] = crate_pos.x;
-            sprites_pos_cpu[crate_sprite_index * 8 + 1] = crate_pos.y;
-
-            sprites_pos_cpu[crate_sprite_index * 8 + 2] = crate_pos.x + 1;
-            sprites_pos_cpu[crate_sprite_index * 8 + 3] = crate_pos.y;
-
-            sprites_pos_cpu[crate_sprite_index * 8 + 4] = crate_pos.x;
-            sprites_pos_cpu[crate_sprite_index * 8 + 5] = crate_pos.y + 1;
-
-            sprites_pos_cpu[crate_sprite_index * 8 + 6] = crate_pos.x + 1;
-            sprites_pos_cpu[crate_sprite_index * 8 + 7] = crate_pos.y + 1;
-        })
     } else if (cur_animating_undo_command !== null) {
         visual_state.turn_time -= delta / move_duration;
         visual_state.turn_time = clamp(visual_state.turn_time, 0, 1);
