@@ -34,13 +34,15 @@ function onKeyDown(ev: KeyboardEvent) {
 }
 
 let cur_turn = 0;
+let prev_player_address = [0];
 let player_address = [0];
 let anim_turn = false;
 /** between 0 & 1 */
 let anim_t = 0.0;
+const anim_duration = .3;
 
 // starts as true;
-function thueMorson(n: number) {
+function thueMorse(n: number) {
     let res = true;
     while (n > 0) {
         if (n % 2 == 1) {
@@ -82,22 +84,28 @@ function nextAdress(address: number[]) {
 
 function onInput(is_left: boolean) {
     anim_t = 0;
-    if (is_left == thueMorson(cur_turn)) {
+    if (is_left == thueMorse(cur_turn)) {
         cur_turn += 1;
         anim_turn = player_address.every(d => d == 3);
+        prev_player_address = player_address.slice();
         player_address = nextAdress(player_address);
+        console.log("prev: ", prev_player_address)
+        console.log("cur: ", player_address)
     } else {
         // lost!
         alert("lost!")
         cur_turn = 0;
+        anim_turn = false;
+        player_address = [0];
     }
 }
 
-function getVisiting(address: number[]): 0 | 1 | 2 {
-    for (let k = 0; k < Math.min(address.length, player_address.length); k++) {
-        if (address[k] < player_address[k]) {
+function getVisiting(address: number[], player?: number[]): 0 | 1 | 2 {
+    player = player || player_address;
+    for (let k = 0; k < Math.min(address.length, player.length); k++) {
+        if (address[k] < player[k]) {
             return 0;
-        } else if (address[k] > player_address[k]) {
+        } else if (address[k] > player[k]) {
             return 2;
         }
     }
@@ -128,31 +136,60 @@ function drawTiles(x: number, y: number, w: number, h: number, address: number[]
     }
 }
 
-// const colors_v2_left = ["#5FAD67", "#A9F05F", "#5889A2"];
-// const colors_v2_right = ["#5FAD67", "#A9F05F", "#5889A2"];
-// function drawTilesV2(x: number, y: number, w: number, h: number, address: number[], flip: boolean) {
-//     if (address.length < player_address.length) {
-//         // still bigger than the player, recurse more
-//         let x1 = x;
-//         let x2 = x + w / 2;
-//         let y1 = y;
-//         let y2 = y + h / 2;
-//         /*if (flip) {
-//             x1 = x + w / 2;
-//             x2 = x;
-//         }*/
+const colors_v2_left = ["red", "pink", "darkred"];
+const colors_v2_right = ["green", "lime", "darkgreen"];
+function drawTilesV2(x: number, y: number, w: number, h: number, address: number[], flip: boolean) {
+    if (address.length < player_address.length) {
+        // still bigger than the player, recurse more
+        let x1 = x;
+        let x2 = x + w / 2;
+        let y1 = y;
+        let y2 = y + h / 2;
 
-//         drawTiles(x1, y1, w / 2, h / 2, address.concat([0]), flip);
-//         drawTiles(x2, y1, w / 2, h / 2, address.concat([1]), !flip);
-//         drawTiles(x1, y2, w / 2, h / 2, address.concat([2]), !flip);
-//         drawTiles(x2, y2, w / 2, h / 2, address.concat([3]), flip);
-//     } else {
-//         // plain quad
-//         let visiting = getVisiting(address);
-//         ctx.fillStyle = colors_asdf[visiting];
-//         ctx.fillRect(x, y, w, h);
-//     }
-// }
+        drawTilesV2(x1, y1, w / 2, h / 2, address.concat([0]), flip);
+        drawTilesV2(x2, y1, w / 2, h / 2, address.concat([1]), !flip);
+        drawTilesV2(x1, y2, w / 2, h / 2, address.concat([2]), !flip);
+        drawTilesV2(x2, y2, w / 2, h / 2, address.concat([3]), flip);
+
+        if (getVisiting(address) == 0) {
+            // fully in the past
+            let colors = flip ? colors_v2_left : colors_v2_right
+            ctx.fillStyle = colors[1];
+            let border = w / 8;
+            if (
+                player_address[player_address.length - 1] == 0 // has player changed square?
+                && (!anim_turn ?
+                    getVisiting(address, prev_player_address) == 1 : // did we just visit this square?
+                    getVisiting(address, [0].concat(prev_player_address)) == 1)) // special case: if zooming, fake the address
+            {
+                border *= anim_t;
+            }
+            thickBorder(x1, y1, w, h, border);
+        }
+    } else {
+        // plain quad
+        let colors = flip ? colors_v2_left : colors_v2_right
+
+        let visiting = getVisiting(address);
+        if (visiting == 0) {
+            ctx.fillStyle = colors[0];
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = colors[1];
+            thickBorder(x, y, w, h, w / 8);
+        }
+        if (visiting == 1) {
+            ctx.fillStyle = colors[1];
+            thickBorder(x, y, w, h, w / 8);
+        }
+    }
+}
+
+function thickBorder(x: number, y: number, w: number, h: number, border: number) {
+    ctx.fillRect(x, y, w, border);
+    ctx.fillRect(x, y + h - border, w, border);
+    ctx.fillRect(x, y, border, h);
+    ctx.fillRect(x + w - border, y, border, h);
+}
 
 let time_last = 0;
 function update(time_cur: number) {
@@ -164,7 +201,7 @@ function update(time_cur: number) {
     ctx.fillStyle = "#4E5E5E";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    anim_t += delta;
+    anim_t += delta / anim_duration;
     anim_t = Math.min(1.0, anim_t);
 
     let x = 0;
@@ -174,12 +211,17 @@ function update(time_cur: number) {
 
     if (anim_turn) {
         w = lerp(w * 2, w, anim_t);
-        h = lerp(h * 4, h, anim_t); // style 1: vertical
-        // h = lerp(h * 2, h, anim_t); // style 2: squares
+        // h = lerp(h * 4, h, anim_t); // style 1: vertical
+        h = lerp(h * 2, h, anim_t); // style 2: squares
     }
 
-    drawTiles(x, y, w, h, [], false);
-    // drawTilesV2(x, y, w, h, [], false);
+    // drawTiles(x, y, w, h, [], false);
+    drawTilesV2(x, y, w, h, [], false);
+
+    // cheat
+    // while (cur_turn < 1023) {
+    //     onInput(thueMorse(cur_turn));
+    // }
 
     loop_id = requestAnimationFrame(update);
 }
