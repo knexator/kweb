@@ -502,7 +502,6 @@ let command_history: Command[] = [];
 
 let visual_state = {
     turn_time: 0,
-    // player_pos: Vec2.copy(game_state.player_pos),
     player_sprite: createSprite(
         Vec2.copy(game_state.player_pos),
         Vec2.copy(Vec2.one),
@@ -596,39 +595,11 @@ function onKeyDown(ev: KeyboardEvent) {
     console.log("keydown");
     input_state.pressed[ev.code] = true;
     input_state.queued.push(ev.code);
-    /*switch (ev.code) {
-        case "KeyD":
-            input_state.d_down = true;
-            break;
-        case "KeyA":
-            input_state.a_down = true;
-            break;
-        case "KeyW":
-            input_state.w_down = true;
-            break;
-        case "KeyS":
-            input_state.s_down = true;
-            break;
-    }*/
 }
 
 function onKeyUp(ev: KeyboardEvent) {
     console.log("keyup");
     input_state.pressed[ev.code] = false;
-    /*switch (ev.code) {
-        case "KeyD":
-            input_state.d_down = false;
-            break;
-        case "KeyA":
-            input_state.a_down = false;
-            break;
-        case "KeyW":
-            input_state.w_down = false;
-            break;
-        case "KeyS":
-            input_state.s_down = false;
-            break;
-    }*/
 }
 
 
@@ -653,7 +624,6 @@ function update(time_cur: number) {
     if (input_state.pressed["KeyS"]) {
         game_state.debug_y += 1;
     }
-    // console.log(game_state.x, game_state.y);
 
     if (input_state.queued.length > 0 && cur_animating_command === null && cur_animating_undo_command === null) {
         let cur_input = input_state.queued.shift();
