@@ -433,9 +433,13 @@ class PlayerMoveCommand {
         Vec2.add(this.original_pos, this.dir, game_state.player_pos);
     }
 
-    animTurn(turn_time: number) { // also used for undo
+    animTurn(turn_time: number) {
         Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time), visual_state.player_sprite.position);
         updateSpritePositionOrSize(visual_state.player_sprite);
+    }
+
+    undoAnimTurn(turn_time: number) {
+        this.animTurn(1.0 - turn_time);
     }
 
     undo() {
@@ -459,10 +463,26 @@ class PushCrateCommand {
         this.extra_command.execute();
     }
 
-    animTurn(turn_time: number) { // also used for undo
+    animTurn(turn_time: number) {
         Vec2.add(this.original_pos, Vec2.scale(this.dir, turn_time), visual_state.crates_sprites[this.crate_index].position);
         updateSpritePositionOrSize(visual_state.crates_sprites[this.crate_index]);
         this.extra_command.animTurn(turn_time);
+    }
+
+    undoAnimTurn(turn_time: number) {
+        // player moves backwards
+        this.extra_command.animTurn(1.0 - turn_time);
+        // crate pops into place
+        let tile_center = Vec2.add(this.original_pos, new Vec2(.5, .5));
+        if (turn_time < .5) {
+            Vec2.scale(Vec2.one, 1.0 - 2.0 * turn_time, visual_state.crates_sprites[this.crate_index].size);
+            Vec2.add(tile_center, this.dir, tile_center);
+        } else {
+            Vec2.scale(Vec2.one, 2.0 * turn_time - 1.0, visual_state.crates_sprites[this.crate_index].size);
+            Vec2.copy(this.original_pos, visual_state.crates_sprites[this.crate_index].position);
+        }
+        setSpriteCenter(visual_state.crates_sprites[this.crate_index], tile_center);
+        updateSpritePositionOrSize(visual_state.crates_sprites[this.crate_index]);
     }
 
     undo() {
@@ -485,6 +505,10 @@ class BumpWallCommand {
         let displacement = turn_time * (1 - turn_time);
         Vec2.add(this.pos, Vec2.scale(this.dir, displacement), visual_state.player_sprite.position);
         updateSpritePositionOrSize(visual_state.player_sprite);
+    }
+
+    undoAnimTurn(turn_time: number) {
+        throw new Error("not an undoable command");
     }
 
     undo() {
@@ -546,6 +570,10 @@ function createSprite(pos: Vec2, size: Vec2, uv_pos: Vec2, uv_size: Vec2): Sprit
     updateSpritePositionOrSize(sprite);
     updateSpriteUVs(sprite);
     return sprite;
+}
+
+function setSpriteCenter(sprite: Sprite, center: Vec2) {
+    Vec2.sub(center, Vec2.scale(sprite.size, .5), sprite.position);
 }
 
 function updateSpritePositionOrSize(sprite: Sprite) {
@@ -631,7 +659,7 @@ function update(time_cur: number) {
             if (command_history.length > 0) {
                 cur_animating_undo_command = command_history.pop()!;
                 cur_animating_undo_command.undo();
-                visual_state.turn_time = 1;
+                visual_state.turn_time = 0;
             }
         } else {
             let player_delta = new Vec2()
@@ -689,10 +717,10 @@ function update(time_cur: number) {
             visual_state.turn_time = 0;
         }
     } else if (cur_animating_undo_command !== null) {
-        visual_state.turn_time -= delta / move_duration;
+        visual_state.turn_time += delta / move_duration;
         visual_state.turn_time = clamp(visual_state.turn_time, 0, 1);
-        cur_animating_undo_command.animTurn(visual_state.turn_time);
-        if (visual_state.turn_time <= 0) {
+        cur_animating_undo_command.undoAnimTurn(visual_state.turn_time);
+        if (visual_state.turn_time >= 1) {
             cur_animating_undo_command = null;
             visual_state.turn_time = 0;
         }

@@ -24,6 +24,12 @@ export class Vec2 {
         public y: number = 0.0,
     ) { }
 
+    // scratchpad vectors, meant to be reused as intermediate values without allocation
+    static tmp = new Vec2(0, 0);
+    static tmp1 = new Vec2(0, 0);
+    static tmp2 = new Vec2(0, 0);
+    static tmp3 = new Vec2(0, 0);
+
     static zero = new Vec2(0, 0);
     static one = new Vec2(1, 1);
 
