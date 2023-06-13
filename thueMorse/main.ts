@@ -1,15 +1,3 @@
-// This "if" will only execute during development
-/*if (module.hot) {
-    module.hot.dispose(data => {
-        data.game_state = game_state;
-        cancelAnimationFrame(loop_id);
-        document.removeEventListener("keydown", onKeyDown);
-        document.removeEventListener("keyup", onKeyUp);
-    });
-    module.hot.accept(_ => {
-        game_state = module.hot!.data.game_state;
-    });
-}*/
 import * as twgl from "twgl.js";
 import { lerp } from "../kommon/math";
 
@@ -19,6 +7,7 @@ const ctx = canvas.getContext("2d")!;
 let loop_id = requestAnimationFrame(update);
 document.addEventListener("keydown", onKeyDown);
 // document.addEventListener("keyup", onKeyUp);
+document.addEventListener("click", onClick);
 
 function onKeyDown(ev: KeyboardEvent) {
     switch (ev.code) {
@@ -31,6 +20,11 @@ function onKeyDown(ev: KeyboardEvent) {
         default:
             break;
     }
+}
+
+function onClick(ev: MouseEvent) {
+    console.log(ev);
+    onInput(ev.pageX < window.innerWidth / 2);
 }
 
 let cur_turn = 0;
@@ -164,7 +158,59 @@ function drawTilesV2(x: number, y: number, w: number, h: number, address: number
             {
                 border *= anim_t;
             }
-            thickBorder(x1, y1, w, h, border);
+            thickBorder(x, y, w, h, border);
+        }
+    } else {
+        // plain quad
+        let colors = flip ? colors_v2_left : colors_v2_right
+
+        let visiting = getVisiting(address);
+        if (visiting == 0) {
+            ctx.fillStyle = colors[0];
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = colors[1];
+            thickBorder(x, y, w, h, w / 8);
+        }
+        if (visiting == 1) {
+            ctx.fillStyle = colors[1];
+            thickBorder(x, y, w, h, w / 8);
+        }
+    }
+}
+
+
+function drawTilesV3(x: number, y: number, w: number, h: number, address: number[], flip: boolean) {
+    if (address.length < player_address.length) {
+        // still bigger than the player, recurse more
+        let x1 = x;
+        let x2 = x + w / 2;
+        let y1 = y;
+        let y2 = y + h / 2;
+
+        if (flip) {
+            x1 = x + w / 2;
+            x2 = x;
+        }
+
+        drawTilesV3(x1, y1, w / 2, h / 2, address.concat([0]), flip);
+        drawTilesV3(x2, y1, w / 2, h / 2, address.concat([1]), !flip);
+        drawTilesV3(x2, y2, w / 2, h / 2, address.concat([2]), !flip);
+        drawTilesV3(x1, y2, w / 2, h / 2, address.concat([3]), flip);
+
+        if (getVisiting(address) == 0) {
+            // fully in the past
+            let colors = flip ? colors_v2_left : colors_v2_right
+            ctx.fillStyle = colors[1];
+            let border = w / 8;
+            if (
+                player_address[player_address.length - 1] == 0 // has player changed square?
+                && (!anim_turn ?
+                    getVisiting(address, prev_player_address) == 1 : // did we just visit this square?
+                    getVisiting(address, [0].concat(prev_player_address)) == 1)) // special case: if zooming, fake the address
+            {
+                border *= anim_t;
+            }
+            thickBorder(x, y, w, h, border);
         }
     } else {
         // plain quad
@@ -216,7 +262,8 @@ function update(time_cur: number) {
     }
 
     // drawTiles(x, y, w, h, [], false);
-    drawTilesV2(x, y, w, h, [], false);
+    // drawTilesV2(x, y, w, h, [], false);
+    drawTilesV3(x, y, w, h, [], false);
 
     // cheat
     // while (cur_turn < 1023) {
