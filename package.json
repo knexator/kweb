@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@parcel/transformer-glsl": "^2.9.0",
+    "@types/bin-pack": "^1.0.1",
     "@types/color": "^3.0.3",
     "@types/parcel-env": "^0.0.1",
     "@types/stats.js": "^0.17.0",
@@ -19,6 +20,7 @@
     "shx": "^0.3.4"
   },
   "dependencies": {
+    "bin-pack": "^1.0.2",
     "color": "^4.2.3",
     "stats.js": "^0.17.0",
     "twgl.js": "^5.3.1"
