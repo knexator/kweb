@@ -1,5 +1,27 @@
 // Use objects instead of arrays: https://jsben.ch/FgKVi
 
+export function max(arr: number[]) {
+    if (arr.length === 0) {
+        return undefined
+    }
+    return arr[argmax(arr)!];
+}
+
+export function argmax(arr: number[]) {
+    if (arr.length === 0) {
+        return undefined
+    }
+    let res = 0;
+    let biggest = arr[0];
+    for (let k = 1; k < arr.length; k++) {
+        if (arr[k] > biggest) {
+            biggest = arr[k];
+            res = k;
+        }
+    }
+    return res;
+}
+
 export function lerp(a: number, b: number, t: number): number {
     return a * (1 - t) + b * t;
 }
@@ -23,6 +45,12 @@ export class Vec2 {
         public x: number = 0.0,
         public y: number = 0.0,
     ) { }
+
+    set(x: number, y: number): Vec2 {
+        this.x = x;
+        this.y = y;
+        return this;
+    }
 
     // scratchpad vectors, meant to be reused as intermediate values without allocation
     static tmp = new Vec2(0, 0);

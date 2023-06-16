@@ -1,8 +1,8 @@
 import * as twgl from "twgl.js"
 import { Vec2, clamp } from "../kommon/math";
 
-// Sokoban, in "groud truth programming":
-// no abstraction, everything by hand, no reuse
+// Sokoban, in "groud truth programming" / "C style":
+// delay abstraction, consider each byte, don't reuse if it's not a perfect fit
 
 // This "if" will only execute during development
 if (module.hot) {
