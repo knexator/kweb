@@ -12,9 +12,13 @@ document.addEventListener("click", onClick);
 function onKeyDown(ev: KeyboardEvent) {
     switch (ev.code) {
         case "KeyA":
+        case "KeyQ":
+        case "KeyZ":
             onInput(true);
             break;
         case "KeyD":
+        case "KeyM":
+        case "KeyP":
             onInput(false);
             break;
         default:
