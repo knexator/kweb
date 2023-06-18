@@ -22,9 +22,13 @@ function onKeyDown(ev: KeyboardEvent) {
     }
 }
 
+let pending_click = true;
 function onClick(ev: MouseEvent) {
-    console.log(ev);
-    onInput(ev.pageX < window.innerWidth / 2);
+    if (pending_click) {
+        pending_click = false;
+    } else {
+        onInput(ev.pageX < window.innerWidth / 2);
+    }
 }
 
 let cur_turn = 0;
@@ -87,7 +91,7 @@ function onInput(is_left: boolean) {
         console.log("cur: ", player_address)
     } else {
         // lost!
-        alert("lost!")
+        alert(`score: ${cur_turn}`)
         cur_turn = 0;
         anim_turn = false;
         player_address = [0];
@@ -269,6 +273,14 @@ function update(time_cur: number) {
     // while (cur_turn < 1023) {
     //     onInput(thueMorse(cur_turn));
     // }
+
+    if (pending_click) {
+        ctx.fillStyle = "pink";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "60px Arial"
+        ctx.fillText("Click to start", canvas.width / 2, canvas.height * 3 / 4)
+    }
 
     loop_id = requestAnimationFrame(update);
 }
