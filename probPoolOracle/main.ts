@@ -15,8 +15,8 @@ gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 // game logic
 const use_gpu = false;
-const n_updates = 100;
-const n_universes = 500;
+const n_updates = 500;
+const n_universes = 2000;
 const n_balls = 4;
 const ball_r = .05;
 const chaos = .01;
@@ -81,24 +81,31 @@ const update_program = twgl.createProgramFromSources(gl, [
     }
 
     void main() {
-        new_b0 = individualUpdate(vec4(old_b0.xy, old_b0.zw + u_impulse));
-    ${fromRange(1, n_balls, i => {
-        return `new_b${i} = individualUpdate(old_b${i});`
-    }).join("\n")}
-        // collision
-        // generate this code:
-        // collide(new_b0, new_b1, new_b0, new_b1);
-        // collide(0, 2) ...
-        // collide(0, n_balls-1)
-        // collide(1, 2) ...
-        // collide(1, n_balls-1)
-        // ...
-        // collide(n_balls - 2, n_balls-1)
-    ${fromRange(0, n_balls, i => {
-        return fromRange(i + 1, n_balls, j => {
-            return `collide(new_b${i}, new_b${j}, new_b${i}, new_b${j});`;
-        }).join("\n");
-    }).join("\n")}
+        ${fromRange(0, n_balls, i => {
+            return `vec4 tmp_b${i} = old_b${i};`;
+        }).join("\n")} 
+        for (int k=1; k<${n_updates}; k++) {
+            ${fromRange(0, n_balls, i => {
+                return `tmp_b${i} = individualUpdate(tmp_b${i});`
+            }).join("\n")}
+                // collision
+                // generate this code:
+                // collide(new_b0, new_b1, new_b0, new_b1);
+                // collide(0, 2) ...
+                // collide(0, n_balls-1)
+                // collide(1, 2) ...
+                // collide(1, n_balls-1)
+                // ...
+                // collide(n_balls - 2, n_balls-1)
+            ${fromRange(0, n_balls, i => {
+                return fromRange(i + 1, n_balls, j => {
+                    return `collide(tmp_b${i}, tmp_b${j}, tmp_b${i}, tmp_b${j});`;
+                }).join("\n");
+            }).join("\n")}
+        }
+        ${fromRange(0, n_balls, i => {
+            return `new_b${i} = tmp_b${i};`;
+        }).join("\n")} 
     }
     `,
     // fs
@@ -295,7 +302,7 @@ function update(cur_time) {
 
     // ground truth is the cpu
 
-    if (use_gpu) {
+    if (false && use_gpu) {
         // copy cpu to gpu
         gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_1);
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu);
@@ -348,7 +355,8 @@ function update(cur_time) {
     }
 
     // on the other hand, predict the future!
-    if (use_gpu) {
+
+    if (false && use_gpu) {
         let cur_buffers = buffers_1to2;
         let next_buffers = buffers_2to1;
         gl.useProgram(update_program);
@@ -377,7 +385,7 @@ function update(cur_time) {
         gl.useProgram(draw_pinfo.program);
         gl.bindVertexArray(cur_buffers.draw_vao);
         gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
-    } else {
+    } else if (false) {
         update_cpu(balldata_cpu, balldata_cpu_helper, theoretical_impulse[0], theoretical_impulse[1]);
         for (let k = 1; k < n_updates; k++) {
             update_cpu(balldata_cpu_helper, balldata_cpu_helper, 0, 0);
@@ -387,6 +395,30 @@ function update(cur_time) {
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu_helper);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
         // draw the present
+        gl.useProgram(draw_pinfo.program);
+        gl.bindVertexArray(draw_2_vao.vertexArrayObject!);
+        gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
+    } else {
+        update_cpu(balldata_cpu, balldata_cpu_helper, theoretical_impulse[0], theoretical_impulse[1]);
+
+        // copy cpu to gpu
+        gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_1);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu_helper);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        // do a single update
+        gl.useProgram(update_program);
+        gl.enable(gl.RASTERIZER_DISCARD);
+        gl.bindVertexArray(vao_update_1to2);
+        gl.uniform2f(u_impulse_loc, 0, 0);
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, tf_1to2);
+        gl.beginTransformFeedback(gl.POINTS);
+        gl.drawArrays(gl.POINTS, 0, n_universes);
+        gl.endTransformFeedback();
+        gl.disable(gl.RASTERIZER_DISCARD);
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+
+        // draw the future
         gl.useProgram(draw_pinfo.program);
         gl.bindVertexArray(draw_2_vao.vertexArrayObject!);
         gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
