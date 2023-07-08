@@ -14,9 +14,10 @@ gl.enable(gl.BLEND);
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 // game logic
+const use_gpu = false;
 const n_updates = 100;
-const n_universes = 250;
-const n_balls = 8;
+const n_universes = 500;
+const n_balls = 4;
 const ball_r = .05;
 const chaos = .01;
 
@@ -111,16 +112,22 @@ const update_program = twgl.createProgramFromSources(gl, [
     transformFeedbackMode: gl.INTERLEAVED_ATTRIBS,
 });
 
+const ball_start_pos = fromCount(n_balls, k => [(Math.random() - .5) * (2 - ball_r), (Math.random() - .5) * (2 - ball_r)]);
+// const ball_start_pos = [
+//     [.5, 0],
+//     [0, ball_r],
+//     [0, -ball_r],
+//     [-Math.sqrt(3) * ball_r, 0],
+// ]
+
 // px,py,vx,vy for each ball
 // [b0px,b0py,b0vx,b0vy,b1...,b2...,b0px,b0py,b0vx,b0vy,b1...,b2...,....]
 const balldata_cpu = new Float32Array(n_universes * n_balls * 4);
 for (let b = 0; b < n_balls; b++) {
-    let start_px = (Math.random() - .5) * (2 - ball_r);
-    let start_py = (Math.random() - .5) * (2 - ball_r);
     for (let k = 0; k < n_universes; k++) {
         let base_index = (k * n_balls + b) * 4;
-        balldata_cpu[base_index + 0] = start_px;
-        balldata_cpu[base_index + 1] = start_py;
+        balldata_cpu[base_index + 0] = ball_start_pos[b][0];
+        balldata_cpu[base_index + 1] = ball_start_pos[b][1];
     }
 }
 // initial chaos
@@ -272,6 +279,8 @@ document.addEventListener("mousemove", ev => {
     }
 });
 
+let balldata_cpu_helper = new Float32Array(balldata_cpu.length);
+
 let last_time = 0;
 function update(cur_time) {
     stats.update();
@@ -286,68 +295,102 @@ function update(cur_time) {
 
     // ground truth is the cpu
 
-    // copy cpu to gpu
-    gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_1);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    if (use_gpu) {
+        // copy cpu to gpu
+        gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_1);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-    // do a single update...
-    gl.useProgram(update_program);
-    gl.enable(gl.RASTERIZER_DISCARD);
-    gl.bindVertexArray(vao_update_1to2);
-    if (apply_impulse) {
-        gl.uniform2f(u_impulse_loc, theoretical_impulse[0], theoretical_impulse[1]);
-        apply_impulse = false;
-        theoretical_impulse = [0, 0];
-    } else {
-        gl.uniform2f(u_impulse_loc, 0, 0);
-    }
-    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, tf_1to2);
-    gl.beginTransformFeedback(gl.POINTS);
-    gl.drawArrays(gl.POINTS, 0, n_universes);
-    gl.endTransformFeedback();
-    gl.disable(gl.RASTERIZER_DISCARD);
-    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
-
-    // ...and copy the result back to the cpu
-    gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_2);
-    gl.getBufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-    // draw the present
-    gl.useProgram(draw_pinfo.program);
-    gl.bindVertexArray(draw_2_vao.vertexArrayObject!);
-    gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
-
-    // on the other hand, predict the future!
-    let cur_buffers = buffers_1to2;
-    let next_buffers = buffers_2to1;
-    gl.useProgram(update_program);
-    gl.enable(gl.RASTERIZER_DISCARD);
-    for (let k = 0; k < n_updates; k++) {
-        if (k > 0) {
-            const temp = cur_buffers;
-            cur_buffers = next_buffers;
-            next_buffers = temp;
-        }
-        gl.bindVertexArray(cur_buffers.update_vao);
-        if (k === 0) {
+        // do a single update...
+        gl.useProgram(update_program);
+        gl.enable(gl.RASTERIZER_DISCARD);
+        gl.bindVertexArray(vao_update_1to2);
+        if (apply_impulse) {
             gl.uniform2f(u_impulse_loc, theoretical_impulse[0], theoretical_impulse[1]);
+            apply_impulse = false;
+            theoretical_impulse = [0, 0];
         } else {
             gl.uniform2f(u_impulse_loc, 0, 0);
         }
-        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, cur_buffers.tf);
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, tf_1to2);
         gl.beginTransformFeedback(gl.POINTS);
         gl.drawArrays(gl.POINTS, 0, n_universes);
         gl.endTransformFeedback();
-    }
-    gl.disable(gl.RASTERIZER_DISCARD);
-    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+        gl.disable(gl.RASTERIZER_DISCARD);
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
 
-    // draw the future!
-    gl.useProgram(draw_pinfo.program);
-    gl.bindVertexArray(cur_buffers.draw_vao);
-    gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
+        // ...and copy the result back to the cpu
+        gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_2);
+        gl.getBufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        // draw the present
+        gl.useProgram(draw_pinfo.program);
+        gl.bindVertexArray(draw_2_vao.vertexArrayObject!);
+        gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
+    } else {
+        // do a single update
+        if (apply_impulse) {
+            update_cpu(balldata_cpu, balldata_cpu, theoretical_impulse[0], theoretical_impulse[1]);
+            apply_impulse = false;
+            theoretical_impulse = [0, 0];
+        } else {
+            update_cpu(balldata_cpu, balldata_cpu, 0, 0);
+        }
+        // copy cpu to gpu
+        gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_1);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        // draw the present
+        gl.useProgram(draw_pinfo.program);
+        gl.bindVertexArray(draw_1_vao.vertexArrayObject!);
+        gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
+    }
+
+    // on the other hand, predict the future!
+    if (use_gpu) {
+        let cur_buffers = buffers_1to2;
+        let next_buffers = buffers_2to1;
+        gl.useProgram(update_program);
+        gl.enable(gl.RASTERIZER_DISCARD);
+        for (let k = 0; k < n_updates; k++) {
+            if (k > 0) {
+                const temp = cur_buffers;
+                cur_buffers = next_buffers;
+                next_buffers = temp;
+            }
+            gl.bindVertexArray(cur_buffers.update_vao);
+            if (k === 0) {
+                gl.uniform2f(u_impulse_loc, theoretical_impulse[0], theoretical_impulse[1]);
+            } else {
+                gl.uniform2f(u_impulse_loc, 0, 0);
+            }
+            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, cur_buffers.tf);
+            gl.beginTransformFeedback(gl.POINTS);
+            gl.drawArrays(gl.POINTS, 0, n_universes);
+            gl.endTransformFeedback();
+        }
+        gl.disable(gl.RASTERIZER_DISCARD);
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+
+        // draw the future!
+        gl.useProgram(draw_pinfo.program);
+        gl.bindVertexArray(cur_buffers.draw_vao);
+        gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
+    } else {
+        update_cpu(balldata_cpu, balldata_cpu_helper, theoretical_impulse[0], theoretical_impulse[1]);
+        for (let k = 1; k < n_updates; k++) {
+            update_cpu(balldata_cpu_helper, balldata_cpu_helper, 0, 0);
+        }
+        // copy cpu to gpu
+        gl.bindBuffer(gl.ARRAY_BUFFER, balldata_gpu_2);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, balldata_cpu_helper);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        // draw the present
+        gl.useProgram(draw_pinfo.program);
+        gl.bindVertexArray(draw_2_vao.vertexArrayObject!);
+        gl.drawArrays(gl.POINTS, 0, n_universes * n_balls);
+    }
 
     requestAnimationFrame(update);
 }
@@ -373,5 +416,80 @@ function update(cur_time) {
 //     }
 //     `
 // ]);
+
+// n_universes * n_balls * 4
+// [b0px,b0py,b0vx,b0vy,b1...,b2...,b0px,b0py,b0vx,b0vy,b1...,b2...,....]
+function update_cpu(src: Float32Array, dst: Float32Array, impulse_x: number, impulse_y: number) {
+    const bounce = .9;
+    const drag = .99;
+    const dt = .01;
+
+    // individual updates
+    let k = 0;
+    for (let universe = 0; universe < n_universes; universe++) {
+        for (let ball = 0; ball < n_balls; ball++) {
+            let new_vx = src[k + 2] * drag;
+            let new_vy = src[k + 3] * drag;
+            let new_px = src[k + 0] + dt * src[k + 2];
+            let new_py = src[k + 1] + dt * src[k + 3];
+            if (ball === 0) {
+                new_px += dt * impulse_x;
+                new_py += dt * impulse_y;
+                new_vx += impulse_x;
+                new_vy += impulse_y;
+            }
+            if (Math.abs(new_px) > 1.0 - ball_r) {
+                new_px = Math.sign(new_px) * (2.0 - 2.0 * ball_r) - src[k + 0];
+                new_vx = -new_vx;
+            }
+            if (Math.abs(new_py) > 1.0 - ball_r) {
+                new_py = Math.sign(new_py) * (2.0 - 2.0 * ball_r) - src[k + 1];
+                new_vy = -new_vy;
+            }
+            dst[k + 0] = new_px;
+            dst[k + 1] = new_py;
+            dst[k + 2] = new_vx;
+            dst[k + 3] = new_vy;
+            k += 4;
+        }
+    }
+
+    // collision
+    for (let universe = 0; universe < n_universes; universe++) {
+        for (let ball_i = 0; ball_i < n_balls; ball_i++) {
+            let index_i = (universe * n_balls + ball_i) * 4;
+            for (let ball_j = ball_i + 1; ball_j < n_balls; ball_j++) {
+                let index_j = (universe * n_balls + ball_j) * 4;
+                let delta_x = dst[index_i + 0] - dst[index_j + 0];
+                let delta_y = dst[index_i + 1] - dst[index_j + 1];
+                let dist_sq = delta_x * delta_x + delta_y * delta_y;
+                if (dist_sq > 0.0 && dist_sq < 4 * ball_r * ball_r) {
+                    let dist = Math.sqrt(dist_sq);
+                    // assumption: all balls have the same mass
+                    // intuition: the balls exchange their momentum
+                    // but only on the direction joining them
+
+                    // 1. avoid overlap
+                    let push = (2 * ball_r - dist) * .5 * bounce / dist;
+                    dst[index_i + 0] += delta_x * push;
+                    dst[index_i + 1] += delta_y * push;
+                    dst[index_j + 0] -= delta_x * push;
+                    dst[index_j + 1] -= delta_y * push;
+
+                    // 2. exchange momentums
+                    let momentum = (
+                        (delta_x * dst[index_i + 2] + delta_y * dst[index_i + 3])
+                        - (delta_x * dst[index_j + 2] + delta_y * dst[index_j + 3])
+                    ) / dist_sq;
+
+                    dst[index_i + 2] -= momentum * delta_x;
+                    dst[index_i + 3] -= momentum * delta_y;
+                    dst[index_j + 2] += momentum * delta_x;
+                    dst[index_j + 3] += momentum * delta_y;
+                }
+            }
+        }
+    }
+}
 
 requestAnimationFrame(update);
