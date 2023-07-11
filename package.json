@@ -11,7 +11,9 @@
   "devDependencies": {
     "@parcel/transformer-glsl": "^2.9.0",
     "@types/bin-pack": "^1.0.1",
+    "@types/clone": "^2.1.1",
     "@types/color": "^3.0.3",
+    "@types/matter-js": "^0.18.5",
     "@types/parcel-env": "^0.0.1",
     "@types/stats.js": "^0.17.0",
     "gh-pages": "^5.0.0",
@@ -21,7 +23,9 @@
   },
   "dependencies": {
     "bin-pack": "^1.0.2",
+    "clone": "^2.1.2",
     "color": "^4.2.3",
+    "matter-js": "^0.19.0",
     "stats.js": "^0.17.0",
     "twgl.js": "^5.3.1"
   }
