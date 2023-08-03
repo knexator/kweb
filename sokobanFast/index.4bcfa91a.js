@@ -1,0 +1,63 @@
+!function(){function t(t){return t&&t.__esModule?t.default:t}var e="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof self?self:"undefined"!=typeof window?window:"undefined"!=typeof global?global:{},i={},r={},s=e.parcelRequire94c2;null==s&&((s=function(t){if(t in i)return i[t].exports;if(t in r){var e=r[t];delete r[t];var s={id:t,exports:{}};return i[t]=s,e.call(s.exports,s,s.exports),s.exports}var n=Error("Cannot find module '"+t+"'");throw n.code="MODULE_NOT_FOUND",n}).register=function(t,e){r[t]=e},e.parcelRequire94c2=s);var n=s("6MzNI");function o(t,e,i){return Math.max(e,Math.min(i,t))}class a{constructor(t=0,e=0,i=0,r=0){this.x=t,this.y=e,this.z=i,this.w=r}static fromHex(t){var e=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(t);if(null===e)throw Error(`can't parse hex: ${t}`);return new a(parseInt(e[1],16),parseInt(e[2],16),parseInt(e[3],16),255)}static #t=(()=>{this.zero=new a(0,0,0,0)})();static #e=(()=>{this.one=new a(1,1,1,1)})()}class h{constructor(t=0,e=0){this.x=t,this.y=e}toString(){return`Vec2(${this.x}, ${this.y})`}static #t=(()=>{this.tmp=new h(0,0)})();static #e=(()=>{this.tmp1=new h(0,0)})();static #i=(()=>{this.tmp2=new h(0,0)})();static #r=(()=>{this.tmp3=new h(0,0)})();static #s=(()=>{this.zero=new h(0,0)})();static #n=(()=>{this.one=new h(1,1)})();static set(t,e,i){return t.x=e,t.y=i,t}static copy(t,e){return(e=e||new h).x=t.x,e.y=t.y,e}static add(t,e,i){return(i=i||new h).x=t.x+e.x,i.y=t.y+e.y,i}static sub(t,e,i){return(i=i||new h).x=t.x-e.x,i.y=t.y-e.y,i}static mul(t,e,i){return(i=i||new h).x=t.x*e.x,i.y=t.y*e.y,i}static div(t,e,i){return(i=i||new h).x=t.x/e.x,i.y=t.y/e.y,i}static round(t,e){return(e=e||new h).x=Math.round(t.x),e.y=Math.round(t.y),e}static negate(t,e){return(e=e||new h).x=-t.x,e.y=-t.y,e}static scale(t,e,i){return(i=i||new h).x=t.x*e,i.y=t.y*e,i}static lerp(t,e,i,r){return(r=r||new h).x=t.x*(1-i)+e.x*i,r.y=t.y*(1-i)+e.y*i,r}static inBounds(t,e){var i,r,s,n;return i=t.x,r=e.x,i>=0&&i<r&&(s=t.y,n=e.y,s>=0&&s<n)}static onBorder(t,e){var i,r,s,n;return i=t.x,r=e.x,0==i||i+1===r||(s=t.y,n=e.y,0==s||s+1===n)}static isZero(t){return 0===t.x&&0===t.y}static equals(t,e){return t.x===e.x&&t.y===e.y}static map1(t,e,i){return(i=i||new h).x=e(t.x),i.y=e(t.y),i}static map2(t,e,i,r){return(r=r||new h).x=i(t.x,e.x),r.y=i(t.y,e.y),r}static roundToCardinal(t){return Math.abs(t.x)>=Math.abs(t.y)?t.x>=0?"xpos":"xneg":t.y>=0?"ypos":"yneg"}}"use strict";var n=s("6MzNI"),u={},c={},d=function(){};d.prototype={fit:function(t){var e,i,r,s,n=t.length,o=n>0?t[0].width:0,a=n>0?t[0].height:0;for(e=0,this.root={x:0,y:0,width:o,height:a};e<n;e++)r=t[e],(i=this.findNode(this.root,r.width,r.height))?(s=this.splitNode(i,r.width,r.height),r.x=s.x,r.y=s.y):(s=this.growNode(r.width,r.height),r.x=s.x,r.y=s.y)},findNode:function(t,e,i){return t.used?this.findNode(t.right,e,i)||this.findNode(t.down,e,i):e<=t.width&&i<=t.height?t:null},splitNode:function(t,e,i){return t.used=!0,t.down={x:t.x,y:t.y+i,width:t.width,height:t.height-i},t.right={x:t.x+e,y:t.y,width:t.width-e,height:i},t},growNode:function(t,e){var i=t<=this.root.width,r=e<=this.root.height,s=r&&this.root.height>=this.root.width+t,n=i&&this.root.width>=this.root.height+e;return s?this.growRight(t,e):n?this.growDown(t,e):r?this.growRight(t,e):i?this.growDown(t,e):null},growRight:function(t,e){var i;return(this.root={used:!0,x:0,y:0,width:this.root.width+t,height:this.root.height,down:this.root,right:{x:this.root.width,y:0,width:t,height:this.root.height}},i=this.findNode(this.root,t,e))?this.splitNode(i,t,e):null},growDown:function(t,e){var i;return(this.root={used:!0,x:0,y:0,width:this.root.width,height:this.root.height+e,down:{x:0,y:this.root.height,width:this.root.width,height:e},right:this.root},i=this.findNode(this.root,t,e))?this.splitNode(i,t,e):null}},c=d,u=function(t,e){e=e||{};var i=new c,r=e.inPlace||!1,s=t.map(function(t){return r?t:{width:t.width,height:t.height,item:t}});s=s.sort(function(t,e){return e.width*e.height-t.width*t.height}),i.fit(s);var n={width:s.reduce(function(t,e){return Math.max(t,e.x+e.width)},0),height:s.reduce(function(t,e){return Math.max(t,e.y+e.height)},0)};return r||(n.items=s),n};var l=s("9AT65");class p{constructor(t,e,i,r){this.left=t,this.top=e,this.right=i,this.bottom=r}}let _=document.querySelector("#c").getContext("webgl2",{alpha:!1});_.clearColor(.5,.5,.75,1),_.enable(_.BLEND),_.blendFunc(_.SRC_ALPHA,_.ONE_MINUS_SRC_ALPHA),n.resizeCanvasToDisplaySize(_.canvas),_.viewport(0,0,_.drawingBufferWidth,_.drawingBufferHeight);let g=new class{constructor(e,i){this.gl=e,this.n_queued=0,this.program_info=n.createProgramInfo(e,[`#version 300 es
+        
+            in vec2 a_position;
+            in vec2 a_texcoord;
+        
+            // global data
+            // sprites drawn at 0,0 will end in this clipspace position
+            uniform vec2 u_origin;
+            // sprites drawn at 1,1 will end in u_origin plus this clipspace position
+            uniform vec2 u_basis;
+        
+            out vec2 v_texcoord;
+        
+            void main() {
+                gl_Position = vec4(u_origin + a_position * u_basis, 0.0, 1.0);
+                v_texcoord = a_texcoord;
+            }
+            `,`#version 300 es
+            precision highp float;
+            
+            in vec2 v_texcoord;
+        
+            uniform sampler2D u_texture;
+        
+            out vec4 out_color;
+        
+            void main() {
+                out_color = texture(u_texture, v_texcoord);
+            }
+            `]),console.assert(!0,"Can't draw that many sprites, change the code to use u32 indices."),this.vertices_cpu=new Float32Array(8192),this.vertices_gpu=e.createBuffer(),e.bindBuffer(e.ARRAY_BUFFER,this.vertices_gpu),e.bufferData(e.ARRAY_BUFFER,this.vertices_cpu,e.DYNAMIC_DRAW);let r=new Uint16Array(12288);for(let t=0;t<2048;t+=1)r[6*t+0]=4*t+0,r[6*t+1]=4*t+1,r[6*t+2]=4*t+2,r[6*t+3]=4*t+1,r[6*t+4]=4*t+3,r[6*t+5]=4*t+2;this.buffer_info=n.createBufferInfoFromArrays(e,{a_position:{buffer:this.vertices_gpu,numComponents:2,type:Float32Array,offset:0,stride:16},a_texcoord:{buffer:this.vertices_gpu,numComponents:2,type:Float32Array,offset:8,stride:16},indices:{data:r,drawType:e.STATIC_DRAW}}),this.vao_info=n.createVertexArrayInfo(e,this.program_info,this.buffer_info);let s=[];for(let[t,e]of Object.entries(i)){let i=e[1].trim().split("\n").map(t=>t.trim());s.push({width:function(t){if(0!==t.length)return t[function(t){if(0===t.length)return;let e=0,i=t[0];for(let r=1;r<t.length;r++)t[r]>i&&(i=t[r],e=r);return e}(t)]}(i.map(t=>t.length)),height:i.length,spr_rows:i,spr_colors:e[0],spr_name:t})}let o=t(u)(s,{inPlace:!0}),a=new Uint8Array(4*o.height*o.width);this.mapping={},s.forEach(e=>{let i=e.x,r=e.y,s=e.spr_colors.map(e=>{if("darkbrown"==e)return[123,54,23,255];let i=t(l)(e).array();return i.push(255),i});this.mapping[e.spr_name]=new p(i/o.width,r/o.height,(i+e.width)/o.width,(r+e.height)/o.height);for(let t=0;t<e.width;t++)for(let n=0;n<e.height;n++){let h=e.spr_rows[t].charAt(n);if("."===h)continue;let u=s[Number(h)],c=(i+n+(r+t)*o.width)*4;a[c+0]=u[0],a[c+1]=u[1],a[c+2]=u[2],a[c+3]=u[3]}}),this.atlas_texture=n.createTexture(e,{src:a,width:o.width,height:o.height,format:e.RGBA,mag:e.NEAREST}),console.log(this.mapping)}centerLevel(t,e,i){this.origin=new h(-t*i/this.gl.canvas.width,e*i/this.gl.canvas.height),this.basis=new h(2*i/this.gl.canvas.width,-2*i/this.gl.canvas.height)}queue(t,e,i){this.queueExtra(t,new h(e,i),h.one)}queueExtra(t,e,i){let r=4*this.n_queued*4,s=this.mapping[t];if(void 0===s)throw Error(`cant find sprite name ${t}`);this.vertices_cpu[r+0]=e.x,this.vertices_cpu[r+1]=e.y,this.vertices_cpu[r+2]=s.left,this.vertices_cpu[r+3]=s.top,this.vertices_cpu[r+4]=e.x+i.x,this.vertices_cpu[r+5]=e.y,this.vertices_cpu[r+6]=s.right,this.vertices_cpu[r+7]=s.top,this.vertices_cpu[r+8]=e.x,this.vertices_cpu[r+9]=e.y+i.y,this.vertices_cpu[r+10]=s.left,this.vertices_cpu[r+11]=s.bottom,this.vertices_cpu[r+12]=e.x+i.x,this.vertices_cpu[r+13]=e.y+i.y,this.vertices_cpu[r+14]=s.right,this.vertices_cpu[r+15]=s.bottom,this.n_queued+=1}draw(){let t=this.gl;t.bindBuffer(t.ARRAY_BUFFER,this.vertices_gpu),t.bufferSubData(t.ARRAY_BUFFER,0,this.vertices_cpu,0,4*this.n_queued*4),t.useProgram(this.program_info.program),t.bindVertexArray(this.vao_info.vertexArrayObject),n.setUniformsAndBindTextures(this.program_info,{u_origin:[this.origin.x,this.origin.y],u_basis:[this.basis.x,this.basis.y],u_texture:this.atlas_texture}),t.drawElements(t.TRIANGLES,6*this.n_queued,t.UNSIGNED_SHORT,0),this.n_queued=0}}(_,{Floor:[["lightgreen","green"],`
+      11111
+      01111
+      11101
+      11111
+      10111
+    `],Wall:[["brown","darkbrown"],`
+      00010
+      11111
+      01000
+      11111
+      00010
+    `],Player:[["black","orange","white","blue"],`
+      .000.
+      .111.
+      22222
+      .333.
+      .3.3.
+    `],Crate:[["orange"],`
+      00000
+      0...0
+      0...0
+      0...0
+      00000
+    `]}),y=`
+####!!
+#.O#!!
+#..###
+#@P..#
+#..*.#
+#..###
+####!!
+`.trim(),f=y.split("\n").map(t=>t.trim()),w=f.length,x=f[0].length;console.assert(f.every(t=>t.length==x),"Bad ascii level");let m=f.map(t=>t.split("").map(t=>"#"==t)).flat();function v(t,e){return!(t<0)&&!(t>=x)&&!(e<0)&&!(e>=w)&&m[t+e*x]}let b=f.map(t=>t.split("").map(t=>"#"!=t&&"!"!=t)).flat(),A={debug_x:0,debug_y:0,player_pos:new h(2,3),crates_pos:[new h(1,3),new h(3,4)]};class E{constructor(t,e){this.original_pos=t,this.dir=e}execute(){h.add(this.original_pos,this.dir,A.player_pos)}animTurn(t){h.add(this.original_pos,h.scale(this.dir,t),N.player_sprite.position)}undoAnimTurn(t){this.animTurn(1-t)}undo(){h.copy(this.original_pos,A.player_pos)}}class R{constructor(t,e,i){this.crate_index=t,this.original_pos=e,this.dir=i,this.extra_command=new E(h.sub(e,i),i)}execute(){h.add(this.original_pos,this.dir,A.crates_pos[this.crate_index]),this.extra_command.execute()}animTurn(t){h.add(this.original_pos,h.scale(this.dir,t),N.crates_sprites[this.crate_index].position),this.extra_command.animTurn(t)}undoAnimTurn(t){var e;this.extra_command.animTurn(1-t);let i=h.add(this.original_pos,new h(.5,.5));t<.5?(h.scale(h.one,1-2*t,N.crates_sprites[this.crate_index].size),h.add(i,this.dir,i)):(h.scale(h.one,2*t-1,N.crates_sprites[this.crate_index].size),h.copy(this.original_pos,N.crates_sprites[this.crate_index].position)),e=N.crates_sprites[this.crate_index],h.sub(i,h.scale(e.size,.5),e.position)}undo(){h.copy(this.original_pos,A.crates_pos[this.crate_index]),this.extra_command.undo()}}class T{constructor(t,e){this.pos=t,this.dir=e}execute(){throw Error("not an executable command")}animTurn(t){h.add(this.pos,h.scale(this.dir,t*(1-t)),N.player_sprite.position)}undoAnimTurn(t){throw Error("not an undoable command")}undo(){throw Error("not an undoable command")}}let q=[],N={turn_time:0,player_sprite:z(h.copy(A.player_pos),h.copy(h.one),h.copy(h.zero),h.copy(h.one)),crates_sprites:A.crates_pos.map(t=>z(h.copy(t),h.copy(h.one),h.copy(h.zero),h.copy(h.one)))},B=null,F=null;function z(t,e,i,r){return{buffer_index:0,position:t,size:e,uv_pos:i,uv_size:r}}let C={pressed:{},queued:[]};requestAnimationFrame(function t(e){let i=(e-D)*.001;if(D=e,n.resizeCanvasToDisplaySize(_.canvas)&&_.viewport(0,0,_.drawingBufferWidth,_.drawingBufferHeight),C.queued.length>0&&null===B&&null===F){let t=C.queued.shift();if("KeyZ"==t)q.length>0&&((F=q.pop()).undo(),N.turn_time=0);else{let e=new h;switch(t){case"KeyD":e.x=1;break;case"KeyA":e.x=-1;break;case"KeyW":e.y=-1;break;case"KeyS":e.y=1}if(0!=e.x||0!=e.y){let t=h.add(A.player_pos,e);if(v(t.x,t.y))B=new T(A.player_pos,e);else{let i=A.crates_pos.findIndex(e=>h.equals(t,e));if(-1==i)(B=new E(h.copy(A.player_pos),e)).execute(),q.push(B);else{let t=h.add(A.crates_pos[i],e);v(t.x,t.y)||A.crates_pos.some(e=>h.equals(t,e))?B=new T(A.player_pos,e):((B=new R(i,h.copy(A.crates_pos[i]),e)).execute(),q.push(B))}}}}}null!==B?(N.turn_time+=i/.05,N.turn_time=o(N.turn_time,0,1),B.animTurn(N.turn_time),N.turn_time>=1&&(B=null,N.turn_time=0)):null!==F&&(N.turn_time+=i/.05,N.turn_time=o(N.turn_time,0,1),F.undoAnimTurn(N.turn_time),N.turn_time>=1&&(F=null,N.turn_time=0)),_.clear(_.COLOR_BUFFER_BIT),g.centerLevel(x,w,64);for(let t=0;t<w;t++)for(let e=0;e<x;e++)b[e+t*x]?g.queue("Floor",e,t):m[e+t*x]&&g.queue("Wall",e,t);g.queueExtra("Player",N.player_sprite.position,N.player_sprite.size),N.crates_sprites.forEach(t=>{g.queueExtra("Crate",t.position,t.size)}),g.draw(),requestAnimationFrame(t)}),document.addEventListener("keydown",function(t){console.log("keydown"),C.pressed[t.code]=!0,C.queued.push(t.code)}),document.addEventListener("keyup",function(t){console.log("keyup"),C.pressed[t.code]=!1});let D=0}();
+//# sourceMappingURL=index.4bcfa91a.js.map
