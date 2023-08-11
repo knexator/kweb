@@ -12,6 +12,12 @@ function setPixel(patch: Patch, p: Vec2, col: Vec4) {
     patch.data[base_index + 3] = col.w;
 }
 
+function setPixelBoundCheck(patch: Patch, p: Vec2, col: Vec4) {
+    if (Vec2.inBounds(p, patch.size)) {
+        setPixel(patch, p, col);
+    }
+}
+
 function getPixel(patch: Patch, p: Vec2): Vec4 {
     let base_index = 4 * (Math.round(p.x) + Math.round(p.y) * patch.size.x);
     return new Vec4(
@@ -20,6 +26,57 @@ function getPixel(patch: Patch, p: Vec2): Vec4 {
         patch.data[base_index + 2],
         patch.data[base_index + 3],
     );
+}
+
+function drawCircleOutline(patch: Patch, center: Vec2, radius: number, col: Vec4) {
+    let out_pos = new Vec2();
+    let drawInEachOctant = function() {
+        let drawMirrored = function(delta: Vec2) {
+            Vec2.add(center, delta, out_pos);
+            setPixelBoundCheck(patch, out_pos, col);    
+            Vec2.sub(center, delta, out_pos);
+            setPixelBoundCheck(patch, out_pos, col);    
+        }
+
+        drawMirrored(cur_delta);
+        drawMirrored(new Vec2(cur_delta.y, cur_delta.x));
+        drawMirrored(new Vec2(-cur_delta.x, cur_delta.y));
+        drawMirrored(new Vec2(-cur_delta.y, cur_delta.x));
+    }
+
+    let radius_sq = radius * radius;
+    let cur_delta = new Vec2(radius, 0);
+    drawInEachOctant();
+    let DDA = -2 * cur_delta.x * cur_delta.x + 2 * cur_delta.x - 2 * cur_delta.y * cur_delta.y + 2 * radius_sq - 1;
+    while (cur_delta.x >= cur_delta.y) {
+        // Naive
+        /*
+        let A = Vec2.add(cur_delta, new Vec2(-1, 1));
+        let B = Vec2.add(cur_delta, new Vec2(0, 1));
+        let error_A = Math.abs(Vec2.distSq(A) - radius_sq);
+        let error_B = Math.abs(Vec2.distSq(B) - radius_sq);
+        if (error_A < error_B) {
+            cur_delta = A;
+        } else {
+            cur_delta = B;
+        }
+        */
+        /*
+        // Casey's trick
+        cur_delta.y += 1;
+        if (-2 * cur_delta.x * cur_delta.x + 2 * cur_delta.x - 2 * cur_delta.y * cur_delta.y + 2 * radius_sq - 1 < 0) {
+            cur_delta.x -= 1;
+        }
+        */
+       // Digital Differential Analyzer
+       if (DDA < 0) {
+           DDA += 4 * cur_delta.x - 4;
+           cur_delta.x -= 1;
+        }
+        cur_delta.y += 1;
+        DDA += -2 - 4 * cur_delta.y; // this could also use a DDA approach, to avoid the multiplication by 4
+        drawInEachOctant();
+    }
 }
 
 function drawLine(patch: Patch, a: Vec2, b: Vec2, col: Vec4) {
@@ -345,8 +402,7 @@ async function main() {
         drawFunction(screen, pos => {
             let c = (pos.x ^ pos.y) % 256;
             return new Vec4(c, c, c, 255);
-        });
-        blit(screen, sprite, mouse_state.cur_pos, (dst, src) => src.w < 128 ? dst : src);
+        });        
         drawLine(screen, new Vec2(64, 64), mouse_state.cur_pos, new Vec4(255, 0, 0, 255));
         let text = "HELLO WORLD!";
         printLineOutlined(text, new Vec2(Math.sin(cur_time * .005) * 30 + 64 - text.length * 2, 22), new Vec4(255, 128, 255, 255), new Vec4(128, 0, 128, 255));
@@ -375,6 +431,8 @@ async function main() {
             Vec2.sub(cursor_pos, Vec2.one, cursor_pos);
         }
         blit(screen, cursor_sprite, cursor_pos, alphaMask);
+        drawCircleOutline(screen, mouse_state.cur_pos, 8, new Vec4(0, 255, 0, 255));
+        // drawCircleOutline(screen, mouse_state.cur_pos, Math.round(15 + Math.sin(cur_time * .003) * 8), new Vec4(0, 255, 0, 255));
 
         twgl.setTextureFromArray(gl, screen_texture, screen.data);
         gl.useProgram(program_info.program);
