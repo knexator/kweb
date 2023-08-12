@@ -30,12 +30,12 @@ function getPixel(patch: Patch, p: Vec2): Vec4 {
 
 function drawCircleOutline(patch: Patch, center: Vec2, radius: number, col: Vec4) {
     let out_pos = new Vec2();
-    let drawInEachOctant = function() {
-        let drawMirrored = function(delta: Vec2) {
+    let drawInEachOctant = function () {
+        let drawMirrored = function (delta: Vec2) {
             Vec2.add(center, delta, out_pos);
-            setPixelBoundCheck(patch, out_pos, col);    
+            setPixelBoundCheck(patch, out_pos, col);
             Vec2.sub(center, delta, out_pos);
-            setPixelBoundCheck(patch, out_pos, col);    
+            setPixelBoundCheck(patch, out_pos, col);
         }
 
         drawMirrored(cur_delta);
@@ -53,8 +53,8 @@ function drawCircleOutline(patch: Patch, center: Vec2, radius: number, col: Vec4
         /*
         let A = Vec2.add(cur_delta, new Vec2(-1, 1));
         let B = Vec2.add(cur_delta, new Vec2(0, 1));
-        let error_A = Math.abs(Vec2.distSq(A) - radius_sq);
-        let error_B = Math.abs(Vec2.distSq(B) - radius_sq);
+        let error_A = Math.abs(Vec2.magSq(A) - radius_sq);
+        let error_B = Math.abs(Vec2.magSq(B) - radius_sq);
         if (error_A < error_B) {
             cur_delta = A;
         } else {
@@ -68,10 +68,10 @@ function drawCircleOutline(patch: Patch, center: Vec2, radius: number, col: Vec4
             cur_delta.x -= 1;
         }
         */
-       // Digital Differential Analyzer
-       if (DDA < 0) {
-           DDA += 4 * cur_delta.x - 4;
-           cur_delta.x -= 1;
+        // Digital Differential Analyzer
+        if (DDA < 0) {
+            DDA += 4 * cur_delta.x - 4;
+            cur_delta.x -= 1;
         }
         cur_delta.y += 1;
         DDA += -2 - 4 * cur_delta.y; // this could also use a DDA approach, to avoid the multiplication by 4
@@ -402,7 +402,7 @@ async function main() {
         drawFunction(screen, pos => {
             let c = (pos.x ^ pos.y) % 256;
             return new Vec4(c, c, c, 255);
-        });        
+        });
         drawLine(screen, new Vec2(64, 64), mouse_state.cur_pos, new Vec4(255, 0, 0, 255));
         let text = "HELLO WORLD!";
         printLineOutlined(text, new Vec2(Math.sin(cur_time * .005) * 30 + 64 - text.length * 2, 22), new Vec4(255, 128, 255, 255), new Vec4(128, 0, 128, 255));

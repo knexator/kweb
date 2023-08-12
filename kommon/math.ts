@@ -221,7 +221,7 @@ export class Vec2 {
         return a.x === b.x && a.y === b.y;
     }
 
-    static distSq(v: Vec2): number {
+    static magSq(v: Vec2): number {
         return v.x * v.x + v.y * v.y;
     }
 
